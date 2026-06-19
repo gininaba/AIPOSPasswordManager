@@ -110,6 +110,14 @@ With an active emulator or connected USB device:
 
 ---
 
+## Recent Improvements & Fixes
+
+* **Database Integrity**: Deleting custom categories now automatically and atomically resets the category of all associated passwords and API keys to "Uncategorized" (`null` reference) via a database transaction. This prevents dangling category references and database pointer mismatch bugs.
+* **Hardened Backup Parsing**: The backup import engine is now fully null-safe, utilizing Kotlin's nullable compiler-checks and safe defaults to gracefully handle incomplete, legacy, or manually edited JSON backup files without throwing runtime `NullPointerException` crashes.
+* **Authentication Stability**: Fixed an issue where attempting to unlock the vault with an empty master password could cause the application to crash due to cryptography exceptions. The UI now properly validates input before attempting decryption.
+
+---
+
 ## Security Specifications
 
 | Layer | Implementation | Details |

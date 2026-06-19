@@ -28,40 +28,40 @@ import java.io.OutputStreamWriter
 
 // Classes for backup payload structure
 data class BackupPayload(
-    val version: Int,
-    val categories: List<CategoryBackup>,
-    val passwords: List<PasswordBackup>,
-    val apiKeys: List<ApiKeyBackup>
+    val version: Int?,
+    val categories: List<CategoryBackup>?,
+    val passwords: List<PasswordBackup>?,
+    val apiKeys: List<ApiKeyBackup>?
 )
 
 data class CategoryBackup(
-    val id: Int,
-    val name: String,
-    val createdAt: Long
+    val id: Int?,
+    val name: String?,
+    val createdAt: Long?
 )
 
 data class PasswordBackup(
-    val id: Int,
-    val title: String,
-    val username: String,
-    val plaintext: String,
-    val url: String,
-    val notes: String,
+    val id: Int?,
+    val title: String?,
+    val username: String?,
+    val plaintext: String?,
+    val url: String?,
+    val notes: String?,
     val categoryId: Int?,
-    val isFavorite: Boolean,
-    val createdAt: Long,
-    val updatedAt: Long
+    val isFavorite: Boolean?,
+    val createdAt: Long?,
+    val updatedAt: Long?
 )
 
 data class ApiKeyBackup(
-    val id: Int,
-    val serviceName: String,
-    val plaintext: String,
-    val notes: String,
+    val id: Int?,
+    val serviceName: String?,
+    val plaintext: String?,
+    val notes: String?,
     val categoryId: Int?,
-    val isFavorite: Boolean,
-    val createdAt: Long,
-    val updatedAt: Long
+    val isFavorite: Boolean?,
+    val createdAt: Long?,
+    val updatedAt: Long?
 )
 
 data class PasswordUiState(
@@ -301,10 +301,13 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     // Insert categories and build an old-ID → new-ID mapping
                     val categoryIdMap = mutableMapOf<Int, Int>()
                     for (cat in payload.categories.orEmpty()) {
-                        val newId = db.categoryDao().insertCategory(
-                            Category(name = cat.name, createdAt = cat.createdAt)
-                        ).toInt()
-                        categoryIdMap[cat.id] = newId
+                        val name = cat.name ?: ""
+                        if (name.isNotEmpty()) {
+                            val newId = db.categoryDao().insertCategory(
+                                Category(name = name, createdAt = cat.createdAt ?: System.currentTimeMillis())
+                            ).toInt()
+                            cat.id?.let { categoryIdMap[it] = newId }
+                        }
                     }
 
                     // Insert passwords (already Keystore-encrypted)
@@ -318,9 +321,9 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                                 url = p.url ?: "",
                                 notes = p.notes ?: "",
                                 categoryId = p.categoryId?.let { categoryIdMap[it] },
-                                isFavorite = p.isFavorite,
-                                createdAt = p.createdAt,
-                                updatedAt = p.updatedAt
+                                isFavorite = p.isFavorite ?: false,
+                                createdAt = p.createdAt ?: System.currentTimeMillis(),
+                                updatedAt = p.updatedAt ?: System.currentTimeMillis()
                             )
                         )
                     }
@@ -334,9 +337,9 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                                 iv = iv,
                                 notes = k.notes ?: "",
                                 categoryId = k.categoryId?.let { categoryIdMap[it] },
-                                isFavorite = k.isFavorite,
-                                createdAt = k.createdAt,
-                                updatedAt = k.updatedAt
+                                isFavorite = k.isFavorite ?: false,
+                                createdAt = k.createdAt ?: System.currentTimeMillis(),
+                                updatedAt = k.updatedAt ?: System.currentTimeMillis()
                             )
                         )
                     }

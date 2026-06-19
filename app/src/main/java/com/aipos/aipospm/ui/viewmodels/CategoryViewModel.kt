@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.aipos.aipospm.data.AppDatabase
+import androidx.room.withTransaction
 import com.aipos.aipospm.data.Category
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +16,10 @@ import kotlinx.coroutines.launch
  */
 class CategoryViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val categoryDao = AppDatabase.getInstance(application).categoryDao()
+    private val db = AppDatabase.getInstance(application)
+    private val categoryDao = db.categoryDao()
+    private val passwordDao = db.passwordDao()
+    private val apiKeyDao = db.apiKeyDao()
 
     val categories: StateFlow<List<Category>> = categoryDao.getAllCategories()
         .stateIn(
@@ -44,7 +48,11 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
 
     fun deleteCategory(category: Category) {
         viewModelScope.launch {
-            categoryDao.deleteCategory(category)
+            db.withTransaction {
+                passwordDao.clearCategoryRef(category.id)
+                apiKeyDao.clearCategoryRef(category.id)
+                categoryDao.deleteCategory(category)
+            }
         }
     }
 }

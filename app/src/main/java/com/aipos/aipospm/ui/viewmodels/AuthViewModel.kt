@@ -55,6 +55,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun verifyMasterPassword(password: String): Boolean {
+        if (password.isBlank()) {
+            _uiState.value = _uiState.value.copy(error = "Please enter your master password")
+            return false
+        }
         val result = masterPasswordManager.verifyMasterPassword(password)
         _uiState.value = if (result) {
             _uiState.value.copy(isAuthenticated = true, error = null)

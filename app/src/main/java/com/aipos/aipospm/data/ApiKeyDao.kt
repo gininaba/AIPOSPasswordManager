@@ -40,4 +40,7 @@ interface ApiKeyDao {
 
     @Query("DELETE FROM api_keys")
     suspend fun clearTable()
+
+    @Query("UPDATE api_keys SET categoryId = null WHERE categoryId = :categoryId")
+    suspend fun clearCategoryRef(categoryId: Int)
 }

@@ -40,4 +40,7 @@ interface PasswordDao {
 
     @Query("DELETE FROM passwords")
     suspend fun clearTable()
+
+    @Query("UPDATE passwords SET categoryId = null WHERE categoryId = :categoryId")
+    suspend fun clearCategoryRef(categoryId: Int)
 }
