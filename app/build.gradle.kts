@@ -63,6 +63,7 @@ dependencies {
 
     // Security
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment) // Override transitive fragment 1.2.5 from biometric — fixes 16-bit requestCode crash
     implementation(libs.androidx.security.crypto)
     implementation(libs.gson)
 
