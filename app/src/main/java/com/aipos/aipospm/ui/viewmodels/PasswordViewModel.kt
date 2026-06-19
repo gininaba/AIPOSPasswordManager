@@ -5,11 +5,14 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
+import com.aipos.aipospm.data.ApiKeyEntry
 import com.aipos.aipospm.data.AppDatabase
+import com.aipos.aipospm.data.Category
 import com.aipos.aipospm.data.PasswordEntry
 import com.aipos.aipospm.security.BackupManager
 import com.aipos.aipospm.security.CryptoManager
 import com.aipos.aipospm.security.PasswordBreachChecker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,8 +23,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import kotlinx.coroutines.withContext
 import java.io.OutputStreamWriter
 
 // Classes for backup payload structure
@@ -171,21 +173,22 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     ) {
         viewModelScope.launch {
             try {
-                // Fetch categories
+                // Step 1: Fetch data from Room.
+                // Room 2.7 is main-safe — do NOT wrap these calls in withContext(Dispatchers.IO).
                 val categoriesList = db.categoryDao().getAllCategoriesSync()
+                val passwordsList = passwordDao.getAllPasswords().first()
+                val apiKeysList = db.apiKeyDao().getAllApiKeys().first()
+
+                // Step 2: Decrypt Keystore-encrypted passwords into plaintext for the backup.
                 val categoriesBackup = categoriesList.map {
                     CategoryBackup(it.id, it.name, it.createdAt)
                 }
-
-                // Fetch passwords & decrypt
-                val passwordsList = passwordDao.getAllPasswords().first()
                 val passwordsBackup = passwordsList.map {
-                    val plaintext = decryptPassword(it)
                     PasswordBackup(
                         id = it.id,
                         title = it.title,
                         username = it.username,
-                        plaintext = plaintext,
+                        plaintext = decryptPassword(it),
                         url = it.url,
                         notes = it.notes,
                         categoryId = it.categoryId,
@@ -194,15 +197,10 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                         updatedAt = it.updatedAt
                     )
                 }
-
-                // Fetch API keys & decrypt
-                val apiKeysList = db.apiKeyDao().getAllApiKeys().first()
                 val apiKeysBackup = apiKeysList.map {
                     val plaintext = try {
                         cryptoManager.decrypt(it.encryptedApiKey, it.iv)
-                    } catch (e: Exception) {
-                        ""
-                    }
+                    } catch (e: Exception) { "" }
                     ApiKeyBackup(
                         id = it.id,
                         serviceName = it.serviceName,
@@ -215,30 +213,30 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     )
                 }
 
-                // Create JSON payload
-                val payload = BackupPayload(
-                    version = 1,
-                    categories = categoriesBackup,
-                    passwords = passwordsBackup,
-                    apiKeys = apiKeysBackup
-                )
-                val gson = com.google.gson.Gson()
-                val payloadJson = gson.toJson(payload)
+                // Step 3: Serialize, PBKDF2-encrypt, and write to file.
+                // This is CPU + I/O heavy — run on Dispatchers.IO.
+                withContext(Dispatchers.IO) {
+                    val payload = BackupPayload(
+                        version = 1,
+                        categories = categoriesBackup,
+                        passwords = passwordsBackup,
+                        apiKeys = apiKeysBackup
+                    )
+                    val payloadJson = com.google.gson.Gson().toJson(payload)
+                    val encryptedBackup = BackupManager().encryptBackup(payloadJson, password)
 
-                // Encrypt payload
-                val backupManager = BackupManager()
-                val encryptedBackup = backupManager.encryptBackup(payloadJson, password)
-
-                // Write to Uri
-                val contentResolver = getApplication<Application>().contentResolver
-                contentResolver.openOutputStream(uri)?.use { outputStream ->
-                    OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->
-                        writer.write(encryptedBackup)
-                    }
+                    val contentResolver = getApplication<Application>().contentResolver
+                    contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        OutputStreamWriter(outputStream, Charsets.UTF_8).use { writer ->
+                            writer.write(encryptedBackup)
+                            writer.flush()
+                        }
+                    } ?: throw IllegalStateException("Could not open output stream for the selected file.")
                 }
+
                 onSuccess()
             } catch (e: Exception) {
-                onError(e.message ?: "Unknown error")
+                onError(e.message ?: "Unknown error during export")
             }
         }
     }
@@ -251,86 +249,99 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     ) {
         viewModelScope.launch {
             try {
-                // Read from Uri
-                val contentResolver = getApplication<Application>().contentResolver
-                val stringBuilder = StringBuilder()
-                contentResolver.openInputStream(uri)?.use { inputStream ->
-                    BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
-                        var line = reader.readLine()
-                        while (line != null) {
-                            stringBuilder.append(line)
-                            line = reader.readLine()
-                        }
+                // Step 1: Read the backup file and run PBKDF2 decryption on Dispatchers.IO.
+                val payload = withContext(Dispatchers.IO) {
+                    val contentResolver = getApplication<Application>().contentResolver
+                    val backupJson = contentResolver.openInputStream(uri)?.use { stream ->
+                        stream.bufferedReader(Charsets.UTF_8).readText()
+                    } ?: throw IllegalStateException("Could not open the selected backup file.")
+
+                    if (backupJson.isBlank()) {
+                        throw IllegalArgumentException("Backup file is empty or unreadable.")
                     }
+
+                    val decryptedJson = try {
+                        BackupManager().decryptBackup(backupJson, password)
+                    } catch (e: Exception) {
+                        throw IllegalArgumentException("Wrong backup password or corrupted backup file.")
+                    }
+
+                    val parsed = try {
+                        com.google.gson.Gson().fromJson(decryptedJson, BackupPayload::class.java)
+                    } catch (e: Exception) {
+                        throw IllegalArgumentException("Invalid backup file format.")
+                    }
+
+                    if (parsed == null || parsed.version != 1) {
+                        throw IllegalArgumentException("Unsupported or corrupt backup version.")
+                    }
+                    parsed
                 }
-                val backupJson = stringBuilder.toString()
 
-                // Decrypt backup
-                val backupManager = BackupManager()
-                val decryptedJson = backupManager.decryptBackup(backupJson, password)
-
-                // Parse payload
-                val gson = com.google.gson.Gson()
-                val payload = gson.fromJson(decryptedJson, BackupPayload::class.java)
-
-                // Validate payload version
-                if (payload.version != 1) {
-                    throw IllegalArgumentException("Unsupported backup version")
+                // Step 2: Re-encrypt all plaintext values with the Android Keystore key.
+                // IMPORTANT: Keystore crypto must happen BEFORE db.withTransaction — it cannot
+                // be called from inside a Room transaction block (causes threading/locking issues).
+                val encryptedPasswords = payload.passwords.orEmpty().map { p ->
+                    val (enc, iv) = cryptoManager.encrypt(p.plaintext ?: "")
+                    Triple(enc, iv, p)
+                }
+                val encryptedApiKeys = payload.apiKeys.orEmpty().map { k ->
+                    val (enc, iv) = cryptoManager.encrypt(k.plaintext ?: "")
+                    Triple(enc, iv, k)
                 }
 
-                // Restore DB in transaction
+                // Step 3: Atomically restore the database.
+                // Room 2.7 manages its own transaction thread — do NOT nest this inside
+                // withContext(Dispatchers.IO), as that causes connection pool conflicts.
                 db.withTransaction {
                     db.passwordDao().clearTable()
                     db.apiKeyDao().clearTable()
                     db.categoryDao().clearTable()
 
-                    // 1. Insert Categories & map IDs
+                    // Insert categories and build an old-ID → new-ID mapping
                     val categoryIdMap = mutableMapOf<Int, Int>()
-                    for (cat in payload.categories) {
-                        val newCat = com.aipos.aipospm.data.Category(
-                            name = cat.name,
-                            createdAt = cat.createdAt
-                        )
-                        val newId = db.categoryDao().insertCategory(newCat).toInt()
+                    for (cat in payload.categories.orEmpty()) {
+                        val newId = db.categoryDao().insertCategory(
+                            Category(name = cat.name, createdAt = cat.createdAt)
+                        ).toInt()
                         categoryIdMap[cat.id] = newId
                     }
 
-                    // 2. Encrypt & Insert Passwords
-                    for (p in payload.passwords) {
-                        val (encrypted, iv) = cryptoManager.encrypt(p.plaintext)
-                        val newCategoryId = p.categoryId?.let { categoryIdMap[it] }
-                        val newPassword = PasswordEntry(
-                            title = p.title,
-                            username = p.username,
-                            encryptedPassword = encrypted,
-                            iv = iv,
-                            url = p.url,
-                            notes = p.notes,
-                            categoryId = newCategoryId,
-                            isFavorite = p.isFavorite,
-                            createdAt = p.createdAt,
-                            updatedAt = p.updatedAt
+                    // Insert passwords (already Keystore-encrypted)
+                    for ((enc, iv, p) in encryptedPasswords) {
+                        passwordDao.insertPassword(
+                            PasswordEntry(
+                                title = p.title ?: "",
+                                username = p.username ?: "",
+                                encryptedPassword = enc,
+                                iv = iv,
+                                url = p.url ?: "",
+                                notes = p.notes ?: "",
+                                categoryId = p.categoryId?.let { categoryIdMap[it] },
+                                isFavorite = p.isFavorite,
+                                createdAt = p.createdAt,
+                                updatedAt = p.updatedAt
+                            )
                         )
-                        passwordDao.insertPassword(newPassword)
                     }
 
-                    // 3. Encrypt & Insert API Keys
-                    for (k in payload.apiKeys) {
-                        val (encrypted, iv) = cryptoManager.encrypt(k.plaintext)
-                        val newCategoryId = k.categoryId?.let { categoryIdMap[it] }
-                        val newApiKey = com.aipos.aipospm.data.ApiKeyEntry(
-                            serviceName = k.serviceName,
-                            encryptedApiKey = encrypted,
-                            iv = iv,
-                            notes = k.notes,
-                            categoryId = newCategoryId,
-                            isFavorite = k.isFavorite,
-                            createdAt = k.createdAt,
-                            updatedAt = k.updatedAt
+                    // Insert API keys (already Keystore-encrypted)
+                    for ((enc, iv, k) in encryptedApiKeys) {
+                        db.apiKeyDao().insertApiKey(
+                            ApiKeyEntry(
+                                serviceName = k.serviceName ?: "",
+                                encryptedApiKey = enc,
+                                iv = iv,
+                                notes = k.notes ?: "",
+                                categoryId = k.categoryId?.let { categoryIdMap[it] },
+                                isFavorite = k.isFavorite,
+                                createdAt = k.createdAt,
+                                updatedAt = k.updatedAt
+                            )
                         )
-                        db.apiKeyDao().insertApiKey(newApiKey)
                     }
                 }
+
                 onSuccess()
             } catch (e: Exception) {
                 onError(e.message ?: "Failed to decrypt or restore backup")

@@ -1,6 +1,6 @@
 package com.aipos.aipospm.ui.screens
 
-import android.content.ClipData
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -88,6 +88,7 @@ fun SettingsScreen(
     var backupPasswordToSet by remember { mutableStateOf("") }
     var showSetBackupPasswordDialog by remember { mutableStateOf(false) }
     var exportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var isBackupInProgress by remember { mutableStateOf(false) }
 
     var backupPasswordToEnter by remember { mutableStateOf("") }
     var showEnterBackupPasswordDialog by remember { mutableStateOf(false) }
@@ -97,6 +98,13 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri ->
         if (uri != null) {
+            // Take persistable permission so the URI stays valid across threads
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) { /* Some providers don't support persistable permissions — that's OK */ }
             exportUri = uri
             showSetBackupPasswordDialog = true
         }
@@ -106,6 +114,13 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
+            // Take persistable permission so the URI stays valid across threads
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) { /* Some providers don't support persistable permissions — that's OK */ }
             importUri = uri
             showEnterBackupPasswordDialog = true
         }
@@ -114,7 +129,7 @@ fun SettingsScreen(
     // Set Backup Password Dialog (for export)
     if (showSetBackupPasswordDialog) {
         AlertDialog(
-            onDismissRequest = { showSetBackupPasswordDialog = false },
+            onDismissRequest = { if (!isBackupInProgress) showSetBackupPasswordDialog = false },
             title = { Text("Set Backup Password") },
             text = {
                 Column {
@@ -139,31 +154,38 @@ fun SettingsScreen(
                     onClick = {
                         val uri = exportUri
                         if (uri != null && backupPasswordToSet.isNotEmpty()) {
+                            isBackupInProgress = true
+                            showSetBackupPasswordDialog = false
+                            val pwd = backupPasswordToSet
+                            backupPasswordToSet = ""
                             passwordViewModel.exportBackup(
                                 uri = uri,
-                                password = backupPasswordToSet,
+                                password = pwd,
                                 onSuccess = {
+                                    isBackupInProgress = false
                                     scope.launch {
                                         snackbarHostState.showSnackbar("Backup exported successfully")
                                     }
                                 },
                                 onError = { error ->
+                                    isBackupInProgress = false
                                     scope.launch {
                                         snackbarHostState.showSnackbar("Export failed: $error")
                                     }
                                 }
                             )
                         }
-                        showSetBackupPasswordDialog = false
-                        backupPasswordToSet = ""
                     },
-                    enabled = backupPasswordToSet.isNotEmpty()
+                    enabled = backupPasswordToSet.isNotEmpty() && !isBackupInProgress
                 ) {
                     Text("Export")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showSetBackupPasswordDialog = false }) {
+                TextButton(
+                    onClick = { showSetBackupPasswordDialog = false },
+                    enabled = !isBackupInProgress
+                ) {
                     Text("Cancel")
                 }
             }
@@ -173,7 +195,7 @@ fun SettingsScreen(
     // Enter Backup Password Dialog (for import)
     if (showEnterBackupPasswordDialog) {
         AlertDialog(
-            onDismissRequest = { showEnterBackupPasswordDialog = false },
+            onDismissRequest = { if (!isBackupInProgress) showEnterBackupPasswordDialog = false },
             title = { Text("Enter Backup Password") },
             text = {
                 Column {
@@ -198,31 +220,38 @@ fun SettingsScreen(
                     onClick = {
                         val uri = importUri
                         if (uri != null && backupPasswordToEnter.isNotEmpty()) {
+                            isBackupInProgress = true
+                            showEnterBackupPasswordDialog = false
+                            val pwd = backupPasswordToEnter
+                            backupPasswordToEnter = ""
                             passwordViewModel.importBackup(
                                 uri = uri,
-                                password = backupPasswordToEnter,
+                                password = pwd,
                                 onSuccess = {
+                                    isBackupInProgress = false
                                     scope.launch {
                                         snackbarHostState.showSnackbar("Database restored successfully")
                                     }
                                 },
                                 onError = { error ->
+                                    isBackupInProgress = false
                                     scope.launch {
                                         snackbarHostState.showSnackbar("Restore failed: $error")
                                     }
                                 }
                             )
                         }
-                        showEnterBackupPasswordDialog = false
-                        backupPasswordToEnter = ""
                     },
-                    enabled = backupPasswordToEnter.isNotEmpty()
+                    enabled = backupPasswordToEnter.isNotEmpty() && !isBackupInProgress
                 ) {
                     Text("Restore")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEnterBackupPasswordDialog = false }) {
+                TextButton(
+                    onClick = { showEnterBackupPasswordDialog = false },
+                    enabled = !isBackupInProgress
+                ) {
                     Text("Cancel")
                 }
             }
@@ -558,18 +587,20 @@ fun SettingsScreen(
                                 exportLauncher.launch("aipospm_backup.bin")
                             },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            enabled = !isBackupInProgress
                         ) {
-                            Text("Export Backup")
+                            Text(if (isBackupInProgress) "Working..." else "Export Backup")
                         }
                         OutlinedButton(
                             onClick = {
                                 importLauncher.launch(arrayOf("application/octet-stream", "*/*"))
                             },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            enabled = !isBackupInProgress
                         ) {
-                            Text("Import Backup")
+                            Text(if (isBackupInProgress) "Working..." else "Import Backup")
                         }
                     }
                 }
