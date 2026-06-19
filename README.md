@@ -1,27 +1,32 @@
-# 🌌 AIPOS Password Manager
+# AIPOS Password Manager
 
-A premium, fully offline, and highly secure Android application for storing passwords and API keys. Designed with modern **Material You** guidelines (dynamic colors), hardware-backed cryptography via **Android Keystore**, and a local-first architecture.
+A premium, fully offline, and highly secure Android application for storing passwords and API keys. Designed with modern Material You guidelines (dynamic colors), hardware-backed cryptography via Android Keystore, and a local-first architecture.
+
+[![Kotlin Version](https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Android SDK](https://img.shields.io/badge/Android%20SDK-35%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
+[![Security](https://img.shields.io/badge/Security-Android%20Keystore-blue?style=for-the-badge)](https://developer.android.com/training/articles/keystore)
+[![Network](https://img.shields.io/badge/Network-100%25%20Offline-brightgreen?style=for-the-badge)](https://github.com/gininaba/AIPOSPasswordManager)
 
 ---
 
-## ✨ Features
+## Features
 
-* **🔑 Dual Vault Support**: Seamlessly manage credentials (passwords, usernames, URLs) and API keys with a tailored developer experience.
-* **🎨 Material You Design**: Sleek dark/light modes with dynamic styling matching the user's system colors, elegant micro-animations, and fluid transitions.
-* **📂 Custom Categories**: Organize credentials into custom folders/categories with inline creation, edit/delete capabilities, and responsive list filter chips.
-* **🛡️ Hardened Security**:
+* **Dual Vault Support**: Seamlessly manage credentials (passwords, usernames, URLs) and API keys with a tailored developer experience.
+* **Material You Design**: Sleek dark/light modes with dynamic styling matching the user's system colors, elegant micro-animations, and fluid transitions.
+* **Custom Categories**: Organize credentials into custom folders/categories with inline creation, edit/delete capabilities, and responsive list filter chips.
+* **Hardened Security**:
   * **AES-256-GCM** encryption for all stored credentials with hardware-backed keys inside the **Android Keystore**.
   * **PBKDF2 with HmacSHA256** (120k iterations) for master password verification.
   * **EncryptedSharedPreferences** to safely cache user authentication metadata.
   * Native **Biometric Prompt** support (`BIOMETRIC_STRONG`).
-* **🔄 Portable Encrypted Backups**: Export and import your local database to an encrypted JSON backup file. Decoupled from hardware keys using a custom user backup password derived via PBKDF2 (10,000 iterations) + AES-256-GCM, allowing seamless transfer across devices.
-* **🕵️ Offline Breach Check**: Real-time evaluation of master passwords and entry credentials against a bundled database of common weak passwords—without making a single network request.
-* **⏳ Auto-Lock Timeout**: Configurable inactivity timers (Immediately, 1 min, 5 min, 10 min, Never) to keep your vault secure when backgrounded.
-* **📶 100% Offline & Private**: Zero network permissions declared in `AndroidManifest.xml`. Your data never leaves your device.
+* **Portable Encrypted Backups**: Export and import your local database to an encrypted JSON backup file. Decoupled from hardware keys using a custom user backup password derived via PBKDF2 (10,000 iterations) + AES-256-GCM, allowing seamless transfer across devices.
+* **Offline Breach Check**: Real-time evaluation of master passwords and entry credentials against a bundled database of common weak passwords—without making a single network request.
+* **Auto-Lock Timeout**: Configurable inactivity timers (Immediately, 1 min, 5 min, 10 min, Never) to keep your vault secure when backgrounded.
+* **100% Offline & Private**: Zero network permissions declared in `AndroidManifest.xml`. Your data never leaves your device.
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 The application is built on modern Android development practices using **Jetpack Compose**, **Room Database**, and a **Model-View-ViewModel (MVVM)** architecture pattern.
 
@@ -62,18 +67,18 @@ graph TB
 
 ---
 
-## 🛠️ Tech Stack & Dependencies
+## Tech Stack and Dependencies
 
 * **Language**: Kotlin 2.x
-* **UI**: Jetpack Compose with Material 3 & Navigation Compose
+* **UI**: Jetpack Compose with Material 3 and Navigation Compose
 * **Local Database**: Room 2.7.x with Kotlin Symbol Processing (KSP)
 * **Serialization**: Gson 2.11.x
 * **Biometrics**: AndroidX Biometric API
-* **Security & Preferences**: Jetpack Security Crypto
+* **Security and Preferences**: Jetpack Security Crypto
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -105,7 +110,7 @@ With an active emulator or connected USB device:
 
 ---
 
-## 🔒 Security Specifications
+## Security Specifications
 
 | Layer | Implementation | Details |
 |---|---|---|
