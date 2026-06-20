@@ -81,17 +81,12 @@ fun NavGraph(
             )
         }
 
-        // Home Dashboard
+        // Home Dashboard (tab container)
         composable(Screen.Home.route) {
             HomeScreen(
                 passwordViewModel = passwordViewModel,
                 apiKeyViewModel = apiKeyViewModel,
-                onNavigateToPasswords = {
-                    navController.navigate(Screen.Passwords.route)
-                },
-                onNavigateToApiKeys = {
-                    navController.navigate(Screen.ApiKeys.route)
-                },
+                categoryViewModel = categoryViewModel,
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route)
                 },
@@ -103,6 +98,9 @@ fun NavGraph(
                 },
                 onNavigateToPasswordDetail = { id ->
                     navController.navigate(Screen.PasswordDetail.createRoute(id))
+                },
+                onNavigateToApiKeyDetail = { id ->
+                    navController.navigate(Screen.ApiKeyDetail.createRoute(id))
                 },
                 onNavigateToPasswordGenerator = {
                     navController.navigate(Screen.PasswordGenerator.route)

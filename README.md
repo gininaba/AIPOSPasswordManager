@@ -12,7 +12,14 @@ A premium, fully offline, and highly secure Android application for storing pass
 ## Features
 
 * **Dual Vault Support**: Seamlessly manage credentials (passwords, usernames, URLs) and API keys with a tailored developer experience.
-* **Material You Design**: Sleek dark/light modes with dynamic styling matching the user's system colors, elegant micro-animations, and fluid transitions.
+* **Premium Design System**: A custom trust-centric visual identity featuring:
+  * **Trust-Centric Palette**: Deep teal-blue (primary), soft indigo (secondary), and warm amber gold (tertiary) colors providing a safe, reliable feel.
+  * **Material You Integration**: Falls back beautifully to system-derived dynamic styling on Android 12+.
+  * **Semantic Indicators**: Consistent green/amber/red color-coding for password strength, vault health status, and security alerts.
+  * **Polished Typography**: Refined Sans-Serif font hierarchy with custom letter-spacing.
+* **Animated Vault Health Dashboard**: A central dashboard featuring an animated health score circle (which glows upon reaching 100% security), staggered entrance animations, quick actions, and visual favorited indicators.
+* **Secure Setup & Onboarding**: A step-by-step onboarding wizard featuring requirements checklist checkmark animations, warning cards for weak master passwords, and clear trust information.
+* **Interactive Vault Lists**: Easily scan entries with left-accented category markers, initial-letter avatars, and a fluid red-gradient swipe-to-delete gesture.
 * **Custom Categories**: Organize credentials into custom folders/categories with inline creation, edit/delete capabilities, and responsive list filter chips.
 * **Hardened Security**:
   * **AES-256-GCM** encryption for all stored credentials with hardware-backed keys inside the **Android Keystore**.
@@ -21,6 +28,7 @@ A premium, fully offline, and highly secure Android application for storing pass
   * Native **Biometric Prompt** support (`BIOMETRIC_STRONG`).
 * **Portable Encrypted Backups**: Export and import your local database to an encrypted JSON backup file. Decoupled from hardware keys using a custom user backup password derived via PBKDF2 (10,000 iterations) + AES-256-GCM, allowing seamless transfer across devices.
 * **Offline Breach Check**: Real-time evaluation of master passwords and entry credentials against a bundled database of common weak passwords—without making a single network request.
+* **Built-in 2FA Authenticator (TOTP)**: Generate time-based one-time passwords directly within the app. Stores Base32 secrets encrypted at rest and calculates codes completely offline without needing a separate authenticator app.
 * **Auto-Lock Timeout**: Configurable inactivity timers (Immediately, 1 min, 5 min, 10 min, Never) to keep your vault secure when backgrounded.
 * **100% Offline & Private**: Zero network permissions declared in `AndroidManifest.xml`. Your data never leaves your device.
 
@@ -112,10 +120,26 @@ With an active emulator or connected USB device:
 
 ## Recent Improvements & Fixes
 
-* **Database Integrity**: Deleting custom categories now automatically and atomically resets the category of all associated passwords and API keys to "Uncategorized" (`null` reference) via a database transaction. This prevents dangling category references and database pointer mismatch bugs.
-* **Hardened Backup Parsing**: The backup import engine is now fully null-safe, utilizing Kotlin's nullable compiler-checks and safe defaults to gracefully handle incomplete, legacy, or manually edited JSON backup files without throwing runtime `NullPointerException` crashes.
-* **Authentication Stability**: Fixed an issue where attempting to unlock the vault with an empty master password could cause the application to crash due to cryptography exceptions. The UI now properly validates input before attempting decryption.
-
+* **Comprehensive UI/UX Production Polish (v1.1.0)**:
+  * **Brand-New Trust-Centric Design**: Migrated the default violet theme to a premium teal-blue and soft indigo palette, using rounded corners (8–32dp) and optimized hierarchy.
+  * **Animated Vault Health Meter**: Overhauled the home dashboard with a dynamic circular gauge color-coded by strength, glowing on a 100% score, and utilizing slide-in/fade-in staggered entrance transitions.
+  * **Visual Security Indicators**: Integrated strict green/amber/red semantic colors across strength meters, generators, lists, and detail views.
+  * **Trust & Authentication Details**: Refined the login screen with a gradient-backed animating shield icon, frosted-glass input layout, security encryption info badges, and keyboard-submit compatibility. Added requirements checkboxes with animated checkmarks, and breach warning indicators to onboarding.
+  * **Polished Lists**: Introduced left color-accent separators, initial-letter avatars, username styling icons, and a fluid red-gradient swipe-to-delete behavior.
+  * **Interactive Haptics**: Integrated tactically placed haptic vibrations when generating passwords, copying items, or submitting passwords.
+  * **Health Card Bug Fixes**: Corrected transparency/outline issues to improve color contrast, and replaced jittery scale animations with a cleaner look.
+* **Unified Tab Navigation**: Revamped the Bottom Navigation Bar so that switching between Home, Passwords, and API Keys swaps content in-place with smooth crossfades, rather than pushing new pages onto the navigation stack. This drastically improves the native feel and eliminates back-button confusion.
+* **Real-time Security Feedback**: Integrated a dynamic password strength meter and a compromised password warning directly into the credential detail pages.
+* **Security Hardening**: 
+  * Upgraded PBKDF2 iterations for backup encryption keys to 100,000.
+  * Added 250ms debouncing to password strength checks to prevent UI thread blocking on heavy cryptographic operations.
+* **Database Integrity**: Deleting custom categories automatically resets associated entries to "Uncategorized" via a database transaction, preventing pointer mismatch bugs.
+* **Hardened Backup Parsing**: The import engine is now fully null-safe, preventing crashes on incomplete or manually edited legacy JSON backups.
+* **Authentication Stability**: Fixed edge cases where an empty master password could cause cryptography exceptions during unlocking.
+* **Production Stability Hardening**:
+  * Fixed concurrent Flow collection leaks in ViewModels by cancelling prior flow jobs before launching new ones.
+  * Added screen lifecycle `DisposableEffect` cleanups to reset selection states and prevent details bleed/flashing when entering different credential screens.
+  * Fixed swipe-to-dismiss undo data loss where restoring a password would lose its TOTP secret key and reset timestamps. Undo operations now insert original encrypted objects back to the database directly.
 ---
 
 ## Security Specifications

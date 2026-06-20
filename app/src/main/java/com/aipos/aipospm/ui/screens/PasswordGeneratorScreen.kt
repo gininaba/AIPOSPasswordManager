@@ -47,6 +47,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import android.content.ClipData
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +56,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aipos.aipospm.ui.theme.DangerRed
+import com.aipos.aipospm.ui.theme.SecurityGreen
+import com.aipos.aipospm.ui.theme.WarningAmber
 import com.aipos.aipospm.ui.viewmodels.PasswordGeneratorViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordStrength
 import kotlinx.coroutines.launch
@@ -69,6 +74,7 @@ fun PasswordGeneratorScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
+    val haptic = LocalHapticFeedback.current
 
     val strengthProgress by animateFloatAsState(
         targetValue = when (uiState.strength) {
@@ -84,9 +90,9 @@ fun PasswordGeneratorScreen(
     val strengthColor by animateColorAsState(
         targetValue = when (uiState.strength) {
             PasswordStrength.NONE -> MaterialTheme.colorScheme.outline
-            PasswordStrength.WEAK -> MaterialTheme.colorScheme.error
-            PasswordStrength.MEDIUM -> MaterialTheme.colorScheme.tertiary
-            PasswordStrength.STRONG -> MaterialTheme.colorScheme.primary
+            PasswordStrength.WEAK -> DangerRed
+            PasswordStrength.MEDIUM -> WarningAmber
+            PasswordStrength.STRONG -> SecurityGreen
         },
         animationSpec = tween(400),
         label = "strengthColor"
@@ -171,6 +177,7 @@ fun PasswordGeneratorScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         FilledTonalButton(
                             onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 scope.launch {
                                     clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Generated Password", uiState.generatedPassword)))
                                     snackbarHostState.showSnackbar("Password copied to clipboard")
@@ -188,7 +195,10 @@ fun PasswordGeneratorScreen(
                         }
 
                         FilledTonalButton(
-                            onClick = { generatorViewModel.generatePassword() },
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                generatorViewModel.generatePassword()
+                            },
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(

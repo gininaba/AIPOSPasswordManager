@@ -17,7 +17,7 @@ import javax.crypto.spec.SecretKeySpec
 class BackupManager {
 
     companion object {
-        private const val PBKDF2_ITERATIONS = 10_000
+        private const val PBKDF2_ITERATIONS = 100_000
         private const val KEY_LENGTH = 256
         private const val GCM_TAG_LENGTH = 128
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
@@ -38,12 +38,16 @@ class BackupManager {
         // Derive key from password
         val key = deriveKey(password, salt)
 
+        // Generate explicit 12-byte random IV for GCM
+        val iv = ByteArray(12)
+        SecureRandom().nextBytes(iv)
+        val spec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
+
         // Setup AES/GCM Cipher
         val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, key)
+        cipher.init(Cipher.ENCRYPT_MODE, key, spec)
 
         val encryptedBytes = cipher.doFinal(payloadJson.toByteArray(Charsets.UTF_8))
-        val iv = cipher.iv
 
         // Create backup object
         val backupObj = JsonObject().apply {

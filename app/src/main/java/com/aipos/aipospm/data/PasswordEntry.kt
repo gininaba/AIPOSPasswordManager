@@ -16,5 +16,7 @@ data class PasswordEntry(
     val categoryId: Int? = null,
     val isFavorite: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val encryptedTotpSecret: String? = null,
+    val totpIv: String? = null
 )

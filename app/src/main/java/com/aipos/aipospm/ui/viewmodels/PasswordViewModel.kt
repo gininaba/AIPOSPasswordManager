@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -50,7 +51,8 @@ data class PasswordBackup(
     val categoryId: Int?,
     val isFavorite: Boolean?,
     val createdAt: Long?,
-    val updatedAt: Long?
+    val updatedAt: Long?,
+    val plaintextTotp: String? = null
 )
 
 data class ApiKeyBackup(
@@ -67,6 +69,7 @@ data class ApiKeyBackup(
 data class PasswordUiState(
     val selectedPassword: PasswordEntry? = null,
     val decryptedPassword: String = "",
+    val decryptedTotpSecret: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
     val saveSuccess: Boolean = false
@@ -77,6 +80,12 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     private val db = AppDatabase.getInstance(application)
     private val passwordDao = db.passwordDao()
     private val cryptoManager = CryptoManager()
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            PasswordBreachChecker.init(application)
+        }
+    }
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -110,6 +119,10 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     val favoritePasswords: StateFlow<List<PasswordEntry>> = passwordDao.getFavoritePasswords()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val breachedPasswordCount: StateFlow<Int> = passwords
+        .map { list -> list.count { isPasswordBreached(decryptPassword(it)) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     private val _uiState = MutableStateFlow(PasswordUiState())
     val uiState: StateFlow<PasswordUiState> = _uiState.asStateFlow()
 
@@ -129,11 +142,18 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         url: String,
         notes: String,
         categoryId: Int?,
-        isFavorite: Boolean
+        isFavorite: Boolean,
+        totpSecret: String? = null
     ) {
         viewModelScope.launch {
             try {
                 val (encrypted, iv) = cryptoManager.encrypt(password)
+
+                // Encrypt TOTP secret if provided
+                val encryptedTotp: Pair<String, String>? = if (!totpSecret.isNullOrBlank()) {
+                    cryptoManager.encrypt(totpSecret)
+                } else null
+
                 val entry = PasswordEntry(
                     id = id ?: 0,
                     title = title,
@@ -147,7 +167,9 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     createdAt = if (id != null) {
                         _uiState.value.selectedPassword?.createdAt ?: System.currentTimeMillis()
                     } else System.currentTimeMillis(),
-                    updatedAt = System.currentTimeMillis()
+                    updatedAt = System.currentTimeMillis(),
+                    encryptedTotpSecret = encryptedTotp?.first,
+                    totpIv = encryptedTotp?.second
                 )
                 if (id != null) {
                     passwordDao.updatePassword(entry)
@@ -184,6 +206,9 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     CategoryBackup(it.id, it.name, it.createdAt)
                 }
                 val passwordsBackup = passwordsList.map {
+                    val plaintextTotp = if (it.encryptedTotpSecret != null && it.totpIv != null) {
+                        try { cryptoManager.decrypt(it.encryptedTotpSecret, it.totpIv) } catch (_: Exception) { null }
+                    } else null
                     PasswordBackup(
                         id = it.id,
                         title = it.title,
@@ -194,7 +219,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                         categoryId = it.categoryId,
                         isFavorite = it.isFavorite,
                         createdAt = it.createdAt,
-                        updatedAt = it.updatedAt
+                        updatedAt = it.updatedAt,
+                        plaintextTotp = plaintextTotp
                     )
                 }
                 val apiKeysBackup = apiKeysList.map {
@@ -281,9 +307,13 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                 // Step 2: Re-encrypt all plaintext values with the Android Keystore key.
                 // IMPORTANT: Keystore crypto must happen BEFORE db.withTransaction — it cannot
                 // be called from inside a Room transaction block (causes threading/locking issues).
+                data class EncryptedPwEntry(val enc: String, val iv: String, val totpEnc: String?, val totpIv: String?, val backup: PasswordBackup)
                 val encryptedPasswords = payload.passwords.orEmpty().map { p ->
                     val (enc, iv) = cryptoManager.encrypt(p.plaintext ?: "")
-                    Triple(enc, iv, p)
+                    val totpPair = if (!p.plaintextTotp.isNullOrBlank()) {
+                        cryptoManager.encrypt(p.plaintextTotp)
+                    } else null
+                    EncryptedPwEntry(enc, iv, totpPair?.first, totpPair?.second, p)
                 }
                 val encryptedApiKeys = payload.apiKeys.orEmpty().map { k ->
                     val (enc, iv) = cryptoManager.encrypt(k.plaintext ?: "")
@@ -311,19 +341,21 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     }
 
                     // Insert passwords (already Keystore-encrypted)
-                    for ((enc, iv, p) in encryptedPasswords) {
+                    for (entry in encryptedPasswords) {
                         passwordDao.insertPassword(
                             PasswordEntry(
-                                title = p.title ?: "",
-                                username = p.username ?: "",
-                                encryptedPassword = enc,
-                                iv = iv,
-                                url = p.url ?: "",
-                                notes = p.notes ?: "",
-                                categoryId = p.categoryId?.let { categoryIdMap[it] },
-                                isFavorite = p.isFavorite ?: false,
-                                createdAt = p.createdAt ?: System.currentTimeMillis(),
-                                updatedAt = p.updatedAt ?: System.currentTimeMillis()
+                                title = entry.backup.title ?: "",
+                                username = entry.backup.username ?: "",
+                                encryptedPassword = entry.enc,
+                                iv = entry.iv,
+                                url = entry.backup.url ?: "",
+                                notes = entry.backup.notes ?: "",
+                                categoryId = entry.backup.categoryId?.let { categoryIdMap[it] },
+                                isFavorite = entry.backup.isFavorite ?: false,
+                                createdAt = entry.backup.createdAt ?: System.currentTimeMillis(),
+                                updatedAt = entry.backup.updatedAt ?: System.currentTimeMillis(),
+                                encryptedTotpSecret = entry.totpEnc,
+                                totpIv = entry.totpIv
                             )
                         )
                     }
@@ -352,8 +384,11 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    private var loadJob: kotlinx.coroutines.Job? = null
+
     fun loadPassword(id: Int) {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             passwordDao.getPasswordById(id).collect { entry ->
                 if (entry != null) {
                     val decrypted = try {
@@ -361,11 +396,27 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     } catch (e: Exception) {
                         "*** Decryption failed ***"
                     }
+                    val decryptedTotp = if (entry.encryptedTotpSecret != null && entry.totpIv != null) {
+                        try {
+                            cryptoManager.decrypt(entry.encryptedTotpSecret, entry.totpIv)
+                        } catch (_: Exception) { "" }
+                    } else ""
                     _uiState.value = _uiState.value.copy(
                         selectedPassword = entry,
-                        decryptedPassword = decrypted
+                        decryptedPassword = decrypted,
+                        decryptedTotpSecret = decryptedTotp
                     )
                 }
+            }
+        }
+    }
+
+    fun restorePassword(entry: PasswordEntry) {
+        viewModelScope.launch {
+            try {
+                passwordDao.insertPassword(entry)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = "Failed to restore: ${e.message}")
             }
         }
     }

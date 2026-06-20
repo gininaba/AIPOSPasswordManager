@@ -1,6 +1,8 @@
 package com.aipos.aipospm.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,6 +42,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +58,18 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Shield
+import com.aipos.aipospm.security.TotpHelper
+import com.aipos.aipospm.ui.theme.DangerRed
+import com.aipos.aipospm.ui.theme.SecurityGreen
+import com.aipos.aipospm.ui.theme.WarningAmber
+import com.aipos.aipospm.ui.viewmodels.PasswordStrength
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
 import kotlinx.coroutines.launch
@@ -76,6 +91,48 @@ fun PasswordDetailScreen(
     val clipboard = LocalClipboard.current
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var isPasswordCopied by remember { mutableStateOf(false) }
+    var isTotpCopied by remember { mutableStateOf(false) }
+
+    // TOTP live state
+    val decryptedTotpSecret = uiState.decryptedTotpSecret
+    var totpCode by remember { mutableStateOf("") }
+    var totpSecondsRemaining by remember { mutableStateOf(30) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            passwordViewModel.clearSelection()
+        }
+    }
+
+    // Tick every second when we have a TOTP secret
+    LaunchedEffect(decryptedTotpSecret) {
+        if (decryptedTotpSecret.isNotBlank()) {
+            while (true) {
+                val now = System.currentTimeMillis()
+                totpCode = TotpHelper.generateCode(decryptedTotpSecret, now) ?: "------"
+                totpSecondsRemaining = TotpHelper.secondsRemaining(now)
+                kotlinx.coroutines.delay(1000)
+            }
+        } else {
+            totpCode = ""
+            totpSecondsRemaining = 30
+        }
+    }
+
+    LaunchedEffect(isPasswordCopied) {
+        if (isPasswordCopied) {
+            kotlinx.coroutines.delay(1500)
+            isPasswordCopied = false
+        }
+    }
+
+    LaunchedEffect(isTotpCopied) {
+        if (isTotpCopied) {
+            kotlinx.coroutines.delay(1500)
+            isTotpCopied = false
+        }
+    }
 
     LaunchedEffect(passwordId) {
         passwordViewModel.loadPassword(passwordId)
@@ -162,7 +219,7 @@ fun PasswordDetailScreen(
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Title card
+                // Title card with gradient background
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -170,34 +227,47 @@ fun PasswordDetailScreen(
                         containerColor = MaterialTheme.colorScheme.primaryContainer
                     )
                 ) {
-                    Row(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = entry.title,
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                                    )
+                                )
                             )
-                            if (entry.url.isNotEmpty()) {
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = entry.url,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                    text = entry.title,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                if (entry.url.isNotEmpty()) {
+                                    Text(
+                                        text = entry.url,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                            if (entry.isFavorite) {
+                                Icon(
+                                    imageVector = Icons.Default.Star,
+                                    contentDescription = "Favorite",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
-                        }
-                        if (entry.isFavorite) {
-                            Icon(
-                                imageVector = Icons.Default.Star,
-                                contentDescription = "Favorite",
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(24.dp)
-                            )
                         }
                     }
                 }
@@ -259,14 +329,198 @@ fun PasswordDetailScreen(
                                         clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Password", decryptedPassword)))
                                         snackbarHostState.showSnackbar("Password copied")
                                     }
+                                    isPasswordCopied = true
                                 },
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.ContentCopy,
-                                    contentDescription = "Copy",
-                                    modifier = Modifier.size(20.dp)
+                                    imageVector = if (isPasswordCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                                    contentDescription = if (isPasswordCopied) "Copied" else "Copy",
+                                    modifier = Modifier.size(20.dp),
+                                    tint = if (isPasswordCopied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                                 )
+                            }
+                        }
+                    }
+                }
+
+                // Password Security Audit
+                if (decryptedPassword.isNotEmpty()) {
+                    val strength = remember(decryptedPassword) {
+                        evaluateLocalStrength(decryptedPassword)
+                    }
+                    val isBreached = remember(decryptedPassword) {
+                        passwordViewModel.isPasswordBreached(decryptedPassword)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Password Security Audit",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = when (strength) {
+                                        PasswordStrength.NONE -> "Unknown"
+                                        PasswordStrength.WEAK -> "Weak"
+                                        PasswordStrength.MEDIUM -> "Medium"
+                                        PasswordStrength.STRONG -> "Strong"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when (strength) {
+                                        PasswordStrength.NONE -> MaterialTheme.colorScheme.outline
+                                        PasswordStrength.WEAK -> MaterialTheme.colorScheme.error
+                                        PasswordStrength.MEDIUM -> MaterialTheme.colorScheme.tertiary
+                                        PasswordStrength.STRONG -> MaterialTheme.colorScheme.primary
+                                    }
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            LinearProgressIndicator(
+                                progress = {
+                                    when (strength) {
+                                        PasswordStrength.NONE -> 0f
+                                        PasswordStrength.WEAK -> 0.33f
+                                        PasswordStrength.MEDIUM -> 0.66f
+                                        PasswordStrength.STRONG -> 1f
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(RoundedCornerShape(3.dp)),
+                                color = when (strength) {
+                                    PasswordStrength.NONE -> MaterialTheme.colorScheme.outline
+                                    PasswordStrength.WEAK -> MaterialTheme.colorScheme.error
+                                    PasswordStrength.MEDIUM -> MaterialTheme.colorScheme.tertiary
+                                    PasswordStrength.STRONG -> MaterialTheme.colorScheme.primary
+                                },
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                strokeCap = StrokeCap.Round
+                            )
+
+                            if (isBreached) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Shield,
+                                        contentDescription = "Breached",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "⚠️ Compromised: Weak or publicly breached",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // TOTP Code Card
+                if (totpCode.isNotBlank() && totpCode != "------") {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "🔐 Two-Factor Code (TOTP)",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                // Formatted code with spacing: "123 456"
+                                val formattedCode = if (totpCode.length == 6) {
+                                    "${totpCode.substring(0, 3)} ${totpCode.substring(3)}"
+                                } else totpCode
+
+                                Text(
+                                    text = formattedCode,
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    letterSpacing = androidx.compose.ui.unit.TextUnit(2f, androidx.compose.ui.unit.TextUnitType.Sp),
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                // Countdown indicator
+                                val progress = totpSecondsRemaining.toFloat() / TotpHelper.periodSeconds().toFloat()
+                                val countdownColor = if (totpSecondsRemaining <= 5)
+                                    MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onTertiaryContainer
+
+                                androidx.compose.foundation.layout.Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        progress = { progress },
+                                        modifier = Modifier.size(36.dp),
+                                        color = countdownColor,
+                                        trackColor = countdownColor.copy(alpha = 0.15f),
+                                        strokeWidth = 3.dp,
+                                        strokeCap = StrokeCap.Round
+                                    )
+                                    Text(
+                                        text = "$totpSecondsRemaining",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = countdownColor
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                // Copy button
+                                IconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("TOTP", totpCode)))
+                                            snackbarHostState.showSnackbar("2FA code copied")
+                                        }
+                                        isTotpCopied = true
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isTotpCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                                        contentDescription = if (isTotpCopied) "Copied" else "Copy TOTP",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = if (isTotpCopied) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                }
                             }
                         }
                     }
@@ -366,6 +620,21 @@ fun PasswordDetailScreen(
     }
 }
 
+fun evaluateLocalStrength(password: String): PasswordStrength {
+    if (password.isEmpty()) return PasswordStrength.NONE
+    var score = 0
+    if (password.length >= 8) score++
+    if (password.length >= 12) score++
+    if (password.any { it.isUpperCase() }) score++
+    if (password.any { it.isDigit() }) score++
+    if (password.any { !it.isLetterOrDigit() }) score++
+    return when {
+        score <= 1 -> PasswordStrength.WEAK
+        score <= 3 -> PasswordStrength.MEDIUM
+        else -> PasswordStrength.STRONG
+    }
+}
+
 @Composable
 private fun DetailField(
     label: String,
@@ -373,6 +642,15 @@ private fun DetailField(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onCopy: () -> Unit
 ) {
+    var isCopied by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isCopied) {
+        if (isCopied) {
+            kotlinx.coroutines.delay(1500)
+            isCopied = false
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -402,14 +680,17 @@ private fun DetailField(
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(
-                    onClick = onCopy,
+                    onClick = {
+                        onCopy()
+                        isCopied = true
+                    },
                     modifier = Modifier.size(36.dp)
                 ) {
                     Icon(
-                        Icons.Default.ContentCopy,
-                        contentDescription = "Copy",
+                        imageVector = if (isCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                        contentDescription = if (isCopied) "Copied" else "Copy",
                         modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.outline
+                        tint = if (isCopied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                     )
                 }
             }

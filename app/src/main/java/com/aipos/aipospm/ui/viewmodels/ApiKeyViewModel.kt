@@ -109,8 +109,11 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private var loadJob: kotlinx.coroutines.Job? = null
+
     fun loadApiKey(id: Int) {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             apiKeyDao.getApiKeyById(id).collect { entry ->
                 if (entry != null) {
                     val decrypted = try {
@@ -123,6 +126,16 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
                         decryptedApiKey = decrypted
                     )
                 }
+            }
+        }
+    }
+
+    fun restoreApiKey(entry: ApiKeyEntry) {
+        viewModelScope.launch {
+            try {
+                apiKeyDao.insertApiKey(entry)
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = "Failed to restore: ${e.message}")
             }
         }
     }

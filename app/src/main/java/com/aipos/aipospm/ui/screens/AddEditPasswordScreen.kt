@@ -41,6 +41,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.aipos.aipospm.security.TotpHelper
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
 
@@ -79,6 +81,25 @@ fun AddEditPasswordScreen(
     var isFavorite by rememberSaveable { mutableStateOf(false) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var isEditing by rememberSaveable { mutableStateOf(false) }
+    var totpSecret by rememberSaveable { mutableStateOf("") }
+    var showTotpField by rememberSaveable { mutableStateOf(false) }
+
+    var isPasswordBreached by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            passwordViewModel.clearSelection()
+        }
+    }
+
+    LaunchedEffect(password) {
+        if (password.isNotEmpty()) {
+            kotlinx.coroutines.delay(250)
+            isPasswordBreached = passwordViewModel.isPasswordBreached(password)
+        } else {
+            isPasswordBreached = false
+        }
+    }
 
     var dropdownExpanded by remember { mutableStateOf(false) }
     var showCreateCategoryDialog by remember { mutableStateOf(false) }
@@ -103,6 +124,12 @@ fun AddEditPasswordScreen(
                 notes = entry.notes
                 selectedCategoryId = entry.categoryId
                 isFavorite = entry.isFavorite
+                // Populate TOTP secret if present
+                val decryptedTotp = uiState.decryptedTotpSecret
+                if (decryptedTotp.isNotEmpty()) {
+                    totpSecret = decryptedTotp
+                    showTotpField = true
+                }
             }
         }
     }
@@ -297,8 +324,7 @@ fun AddEditPasswordScreen(
             )
 
             // Password breach checker alert
-            val isBreached = passwordViewModel.isPasswordBreached(password)
-            if (password.isNotEmpty() && isBreached) {
+            if (password.isNotEmpty() && isPasswordBreached) {
                 Text(
                     text = "⚠️ This password is in the common/breached passwords list. It is highly recommended to choose a stronger password.",
                     color = MaterialTheme.colorScheme.error,
@@ -339,6 +365,60 @@ fun AddEditPasswordScreen(
                 maxLines = 5
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // TOTP Section
+            Card(
+                onClick = { showTotpField = !showTotpField },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "🔐 Two-Factor Authentication (TOTP)",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = if (showTotpField) "Hide" else if (totpSecret.isNotEmpty()) "Edit" else "Add",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    if (showTotpField) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = totpSecret,
+                            onValueChange = { totpSecret = it },
+                            label = { Text("TOTP Secret Key (Base32)") },
+                            placeholder = { Text("e.g., JBSW43DPEHPK3PXP") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        if (totpSecret.isNotBlank()) {
+                            val isValid = TotpHelper.isValidBase32(totpSecret)
+                            Text(
+                                text = if (isValid) "✅ Valid Base32 key" else "❌ Invalid Base32 format",
+                                color = if (isValid) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
@@ -354,7 +434,8 @@ fun AddEditPasswordScreen(
                         url = url.trim(),
                         notes = notes.trim(),
                         categoryId = selectedCategoryId,
-                        isFavorite = isFavorite
+                        isFavorite = isFavorite,
+                        totpSecret = totpSecret.trim().ifBlank { null }
                     )
                 },
                 modifier = Modifier

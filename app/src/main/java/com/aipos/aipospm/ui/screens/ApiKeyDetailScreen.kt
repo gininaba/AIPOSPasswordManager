@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -39,6 +40,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +77,20 @@ fun ApiKeyDetailScreen(
     val clipboard = LocalClipboard.current
     var keyVisible by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var isKeyCopied by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isKeyCopied) {
+        if (isKeyCopied) {
+            kotlinx.coroutines.delay(1500)
+            isKeyCopied = false
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            apiKeyViewModel.clearSelection()
+        }
+    }
 
     LaunchedEffect(apiKeyId) {
         apiKeyViewModel.loadApiKey(apiKeyId)
@@ -242,13 +258,15 @@ fun ApiKeyDetailScreen(
                                         clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("API Key", decryptedKey)))
                                         snackbarHostState.showSnackbar("API key copied")
                                     }
+                                    isKeyCopied = true
                                 },
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.ContentCopy,
-                                    contentDescription = "Copy",
-                                    modifier = Modifier.size(20.dp)
+                                    imageVector = if (isKeyCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                                    contentDescription = if (isKeyCopied) "Copied" else "Copy",
+                                    modifier = Modifier.size(20.dp),
+                                    tint = if (isKeyCopied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
                                 )
                             }
                         }

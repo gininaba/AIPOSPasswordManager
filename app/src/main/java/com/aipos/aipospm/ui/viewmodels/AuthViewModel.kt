@@ -2,11 +2,14 @@ package com.aipos.aipospm.ui.viewmodels
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import com.aipos.aipospm.security.MasterPasswordManager
 import com.aipos.aipospm.security.PasswordBreachChecker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 data class AuthUiState(
     val isLoading: Boolean = false,
@@ -35,6 +38,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         )
     )
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            PasswordBreachChecker.init(application)
+        }
+    }
 
     fun setupMasterPassword(password: String, confirmPassword: String): Boolean {
         if (password != confirmPassword) {

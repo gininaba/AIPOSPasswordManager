@@ -41,6 +41,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,6 +81,12 @@ fun AddEditApiKeyScreen(
     var dropdownExpanded by remember { mutableStateOf(false) }
     var showCreateCategoryDialog by remember { mutableStateOf(false) }
     var newCatName by remember { mutableStateOf("") }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            apiKeyViewModel.clearSelection()
+        }
+    }
 
     LaunchedEffect(apiKeyId) {
         if (apiKeyId != null && apiKeyId > 0) {

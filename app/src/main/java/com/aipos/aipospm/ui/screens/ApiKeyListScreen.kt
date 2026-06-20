@@ -4,6 +4,7 @@ import android.content.ClipData
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +20,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.Color
+import kotlin.math.absoluteValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -56,13 +62,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aipos.aipospm.data.ApiKeyEntry
+import com.aipos.aipospm.ui.theme.DangerRed
 import com.aipos.aipospm.ui.viewmodels.ApiKeyViewModel
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import kotlinx.coroutines.launch
@@ -76,14 +86,6 @@ fun ApiKeyListScreen(
     onNavigateToAdd: () -> Unit,
     onNavigateToDetail: (Int) -> Unit
 ) {
-    val apiKeys by apiKeyViewModel.apiKeys.collectAsStateWithLifecycle()
-    val categories by categoryViewModel.categories.collectAsStateWithLifecycle()
-    val selectedCategoryIdFilter by apiKeyViewModel.selectedCategoryIdFilter.collectAsStateWithLifecycle()
-    val searchQuery by apiKeyViewModel.searchQuery.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboard.current
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -107,44 +109,99 @@ fun ApiKeyListScreen(
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add API Key")
             }
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        }
     ) { padding ->
+        ApiKeyListContent(
+            apiKeyViewModel = apiKeyViewModel,
+            categoryViewModel = categoryViewModel,
+            onNavigateToDetail = onNavigateToDetail,
+            modifier = Modifier.padding(padding)
+        )
+    }
+}
+
+/**
+ * Reusable API key list body (search bar, category chips, and list).
+ * Can be embedded inside HomeScreen tabs or used standalone via ApiKeyListScreen.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ApiKeyListContent(
+    apiKeyViewModel: ApiKeyViewModel,
+    categoryViewModel: CategoryViewModel,
+    onNavigateToDetail: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val apiKeys by apiKeyViewModel.apiKeys.collectAsStateWithLifecycle()
+    val categories by categoryViewModel.categories.collectAsStateWithLifecycle()
+    val selectedCategoryIdFilter by apiKeyViewModel.selectedCategoryIdFilter.collectAsStateWithLifecycle()
+    val searchQuery by apiKeyViewModel.searchQuery.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboard.current
+
+    Box(modifier = modifier) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+            modifier = Modifier.fillMaxSize()
         ) {
-            SearchBar(
-                inputField = {
-                    SearchBarDefaults.InputField(
-                        query = searchQuery,
-                        onQueryChange = { apiKeyViewModel.updateSearchQuery(it) },
-                        onSearch = {},
-                        expanded = false,
-                        onExpandedChange = {},
-                        placeholder = { Text("Search API keys...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                        trailingIcon = {
-                            AnimatedVisibility(
-                                visible = searchQuery.isNotEmpty(),
-                                enter = fadeIn(),
-                                exit = fadeOut()
-                            ) {
-                                IconButton(onClick = { apiKeyViewModel.updateSearchQuery("") }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
-                                }
-                            }
-                        }
-                    )
-                },
-                expanded = false,
-                onExpandedChange = {},
+            // Custom Search Bar
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {}
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                )
+            ) {
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = { apiKeyViewModel.updateSearchQuery(it) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    singleLine = true,
+                    decorationBox = { innerTextField ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (searchQuery.isEmpty()) {
+                                    Text(
+                                        text = "Search API keys...",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                                innerTextField()
+                            }
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { apiKeyViewModel.updateSearchQuery("") },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Clear",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                )
+            }
 
             // Category filter chips
             LazyRow(
@@ -177,18 +234,35 @@ fun ApiKeyListScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.VpnKey,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.outline
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VpnKey,
+                            contentDescription = null,
+                            modifier = Modifier.size(36.dp),
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = if (searchQuery.isNotEmpty() || selectedCategoryIdFilter != null) "No results found"
                         else "No API keys saved yet",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (searchQuery.isNotEmpty() || selectedCategoryIdFilter != null) "Try a different search or filter"
+                        else "Tap the + button to add your first API key",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp)
                     )
                 }
             } else {
@@ -210,14 +284,7 @@ fun ApiKeyListScreen(
                                             actionLabel = "Undo"
                                         )
                                         if (result == SnackbarResult.ActionPerformed) {
-                                            apiKeyViewModel.saveApiKey(
-                                                id = entry.id,
-                                                serviceName = entry.serviceName,
-                                                apiKey = apiKeyViewModel.decryptApiKey(entry),
-                                                notes = entry.notes,
-                                                categoryId = entry.categoryId,
-                                                isFavorite = entry.isFavorite
-                                            )
+                                            apiKeyViewModel.restoreApiKey(entry)
                                         }
                                     }
                                     true
@@ -229,14 +296,26 @@ fun ApiKeyListScreen(
                             state = dismissState,
                             backgroundContent = {
                                 Box(
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    DangerRed.copy(alpha = 0.15f)
+                                                )
+                                            )
+                                        ),
                                     contentAlignment = Alignment.CenterEnd
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
                                         contentDescription = "Delete",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.padding(end = 16.dp)
+                                        tint = DangerRed,
+                                        modifier = Modifier
+                                            .padding(end = 16.dp)
+                                            .size(24.dp)
                                     )
                                 }
                             },
@@ -260,7 +339,23 @@ fun ApiKeyListScreen(
                 }
             }
         }
+
+        // Snackbar host overlay for inline usage
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
+}
+
+@Composable
+fun getApiKeyCategoryColors(name: String): Pair<Color, Color> {
+    val hash = name.hashCode().absoluteValue
+    val hue = (hash % 360).toFloat()
+    val isDark = isSystemInDarkTheme()
+    val containerColor = Color.hsv(hue, 0.15f, if (isDark) 0.15f else 0.95f)
+    val contentColor = Color.hsv(hue, 0.8f, if (isDark) 0.9f else 0.4f)
+    return Pair(containerColor, contentColor)
 }
 
 @Composable
@@ -283,9 +378,20 @@ private fun ApiKeyCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(start = 0.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Left accent bar (secondary/indigo color)
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(topEnd = 2.dp, bottomEnd = 2.dp))
+                    .background(MaterialTheme.colorScheme.secondary)
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
             Card(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(
@@ -325,17 +431,18 @@ private fun ApiKeyCard(
                     )
                 }
                 if (categoryName != null) {
+                    val (containerColor, contentColor) = getApiKeyCategoryColors(categoryName)
                     Spacer(modifier = Modifier.height(4.dp))
                     Card(
                         shape = RoundedCornerShape(6.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            containerColor = containerColor
                         )
                     ) {
                         Text(
                             text = categoryName,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            color = contentColor,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             fontWeight = FontWeight.Medium
                         )
