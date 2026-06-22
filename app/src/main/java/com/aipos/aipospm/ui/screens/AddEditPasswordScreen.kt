@@ -20,6 +20,11 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -345,19 +350,36 @@ fun AddEditPasswordScreen(
 
             // Password breach checker alert
             if (password.isNotEmpty() && isPasswordBreached) {
-                Text(
-                    text = "⚠️ This password is in the common/breached passwords list. It is highly recommended to choose a stronger password.",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 4.dp, start = 4.dp)
-                )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Warning",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "This password is in the common/breached passwords list. It is highly recommended to choose a stronger password.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
 
             TextButton(
                 onClick = onNavigateToGenerator,
                 modifier = Modifier.padding(start = 4.dp)
             ) {
-                Text("🎲 Generate Password")
+                Icon(
+                    imageVector = Icons.Default.Casino,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Generate Password")
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -401,8 +423,15 @@ fun AddEditPasswordScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "🔐 Two-Factor Authentication (TOTP)",
+                            text = "Two-Factor Authentication (TOTP)",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.weight(1f)
@@ -447,13 +476,24 @@ fun AddEditPasswordScreen(
                         )
                         if (totpSecret.isNotBlank()) {
                             val isValid = TotpHelper.isValidBase32(totpSecret)
-                            Text(
-                                text = if (isValid) "✅ Valid Base32 key" else "❌ Invalid Base32 format",
-                                color = if (isValid) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(top = 4.dp, start = 4.dp)
-                            )
+                            ) {
+                                Icon(
+                                    imageVector = if (isValid) Icons.Default.Check else Icons.Default.Close,
+                                    contentDescription = if (isValid) "Valid" else "Invalid",
+                                    tint = if (isValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isValid) "Valid Base32 key" else "Invalid Base32 format",
+                                    color = if (isValid) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         }
                     }
                 }

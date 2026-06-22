@@ -64,6 +64,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Lock
 import com.aipos.aipospm.security.TotpHelper
 import com.aipos.aipospm.ui.theme.DangerRed
 import com.aipos.aipospm.ui.theme.SecurityGreen
@@ -426,7 +427,7 @@ fun PasswordDetailScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "⚠️ Compromised: Weak or publicly breached",
+                                        text = "Compromised: Weak or publicly breached",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.error,
                                         fontWeight = FontWeight.Medium
@@ -449,11 +450,20 @@ fun PasswordDetailScreen(
                         )
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "🔐 Two-Factor Code (TOTP)",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Two-Factor Code (TOTP)",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,

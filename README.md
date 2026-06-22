@@ -128,6 +128,7 @@ With an active emulator or connected USB device:
   * **Spring-like Tactile Interaction**: Exposes custom scale-on-press modifiers (`bounceClick` and `pressScale`) to provide spring-scale tactile transitions on card items, settings options, primary buttons, and FABs.
   * **Smooth Screen Transitions**: Implemented slide-in/slide-out navigation globally for screen navigations (sliding left/right and popping right/left).
   * **List Animations**: Applied `Modifier.animateItem()` to Favorites, Passwords, and API Keys lists for smooth visual updates when items are added, deleted, restored, or filtered.
+  * **Complete Emoji-to-Icon Migration**: Replaced all raw emojis across screens with standard Material Design 3 icons inside Row layouts to provide a clean, modern, and universally compatible appearance.
   * **Prevented Camera frame lockups**: Fixed a critical bug in `QrCodeAnalyzer` where buffer reading exceptions could leave image frames open, freezing the camera preview. Added a `try-finally` block to guarantee frame cleanup.
   * **Clipboard Timer Reset**: Fixed a race condition where copying multiple credentials sequentially would trigger premature clipboard clearing. Reschedules now cancel previous timers.
 * **Comprehensive UI/UX Production Polish (v1.1.0)**:

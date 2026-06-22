@@ -498,12 +498,23 @@ private fun DashboardContent(
         // Unified Favorites Section
         if (favoritesList.isNotEmpty()) {
             item {
-                Text(
-                    text = "⭐ Favorites (${favoritesList.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 8.dp)
-                )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Favorites (${favoritesList.size})",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
 
             items(favoritesList, key = { if (it.isPassword) "pwd_${it.id}" else "key_${it.id}" }) { item ->
