@@ -84,6 +84,12 @@ import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.aipos.aipospm.ui.components.bounceClick
+import com.aipos.aipospm.ui.components.pressScale
+import com.aipos.aipospm.security.ClipboardHelper
+import androidx.compose.ui.platform.LocalContext
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PasswordListScreen(
@@ -108,11 +114,14 @@ fun PasswordListScreen(
             )
         },
         floatingActionButton = {
+            val interactionSource = remember { MutableInteractionSource() }
             FloatingActionButton(
                 onClick = onNavigateToAdd,
+                interactionSource = interactionSource,
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.pressScale(interactionSource)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Password")
             }
@@ -145,7 +154,7 @@ fun PasswordListContent(
     val searchQuery by passwordViewModel.searchQuery.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
 
     Box(modifier = modifier) {
         Column(
@@ -302,6 +311,7 @@ fun PasswordListContent(
 
                         SwipeToDismissBox(
                             state = dismissState,
+                            modifier = Modifier.animateItem(),
                             backgroundContent = {
                                 Box(
                                     modifier = Modifier
@@ -337,9 +347,9 @@ fun PasswordListContent(
                                 onClick = { onNavigateToDetail(entry.id) },
                                 onFavoriteClick = { passwordViewModel.toggleFavorite(entry) },
                                 onCopyUsername = {
+                                    ClipboardHelper.copyAndScheduleClear(context, "Username", entry.username)
                                     scope.launch {
-                                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Username", entry.username)))
-                                        snackbarHostState.showSnackbar("Username copied")
+                                        snackbarHostState.showSnackbar("Username copied (clears in 30s)")
                                     }
                                 }
                             )
@@ -376,8 +386,9 @@ private fun PasswordCard(
     onCopyUsername: () -> Unit
 ) {
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .bounceClick(onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow

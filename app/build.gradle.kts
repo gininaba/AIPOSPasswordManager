@@ -12,8 +12,8 @@ android {
         applicationId = "com.aipos.aipospm"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -31,6 +31,11 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 }
 
@@ -66,6 +71,13 @@ dependencies {
     implementation(libs.androidx.fragment) // Override transitive fragment 1.2.5 from biometric — fixes 16-bit requestCode crash
     implementation(libs.androidx.security.crypto)
     implementation(libs.gson)
+
+    // Camera & ZXing (Offline QR Scanning)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.zxing.core)
 
     // Testing
     testImplementation(libs.junit)

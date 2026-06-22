@@ -44,9 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
-import android.content.ClipData
-import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalContext
+import com.aipos.aipospm.security.ClipboardHelper
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.AnnotatedString
@@ -73,7 +72,7 @@ fun PasswordGeneratorScreen(
     val uiState by generatorViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
     val strengthProgress by animateFloatAsState(
@@ -178,9 +177,10 @@ fun PasswordGeneratorScreen(
                         FilledTonalButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                generatorViewModel.recordCurrentPasswordInHistory()
+                                ClipboardHelper.copyAndScheduleClear(context, "Generated Password", uiState.generatedPassword)
                                 scope.launch {
-                                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Generated Password", uiState.generatedPassword)))
-                                    snackbarHostState.showSnackbar("Password copied to clipboard")
+                                    snackbarHostState.showSnackbar("Password copied (clears in 30s)")
                                 }
                             },
                             shape = RoundedCornerShape(12.dp)
@@ -197,6 +197,7 @@ fun PasswordGeneratorScreen(
                         FilledTonalButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                generatorViewModel.recordCurrentPasswordInHistory()
                                 generatorViewModel.generatePassword()
                             },
                             shape = RoundedCornerShape(12.dp)
@@ -296,6 +297,60 @@ fun PasswordGeneratorScreen(
                         checked = uiState.useSymbols,
                         onCheckedChange = { generatorViewModel.toggleSymbols(it) }
                     )
+                }
+            }
+
+            if (uiState.history.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(
+                            text = "History",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        uiState.history.forEach { hist ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = hist,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        ClipboardHelper.copyAndScheduleClear(context, "Generated Password", hist)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Password copied (clears in 30s)")
+                                        }
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.ContentCopy,
+                                        contentDescription = "Copy from history",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

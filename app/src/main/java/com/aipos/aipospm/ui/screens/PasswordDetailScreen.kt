@@ -52,9 +52,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import android.content.ClipData
-import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalContext
+import com.aipos.aipospm.security.ClipboardHelper
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -88,7 +87,7 @@ fun PasswordDetailScreen(
     val uiState by passwordViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var isPasswordCopied by remember { mutableStateOf(false) }
@@ -280,9 +279,9 @@ fun PasswordDetailScreen(
                     value = entry.username,
                     icon = Icons.Default.Person,
                     onCopy = {
+                        ClipboardHelper.copyAndScheduleClear(context, "Username", entry.username)
                         scope.launch {
-                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Username", entry.username)))
-                            snackbarHostState.showSnackbar("Username copied")
+                            snackbarHostState.showSnackbar("Username copied (clears in 30s)")
                         }
                     }
                 )
@@ -325,9 +324,9 @@ fun PasswordDetailScreen(
                             }
                             IconButton(
                                 onClick = {
+                                    ClipboardHelper.copyAndScheduleClear(context, "Password", decryptedPassword)
                                     scope.launch {
-                                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Password", decryptedPassword)))
-                                        snackbarHostState.showSnackbar("Password copied")
+                                        snackbarHostState.showSnackbar("Password copied (clears in 30s)")
                                     }
                                     isPasswordCopied = true
                                 },
@@ -505,9 +504,9 @@ fun PasswordDetailScreen(
                                 // Copy button
                                 IconButton(
                                     onClick = {
+                                        ClipboardHelper.copyAndScheduleClear(context, "TOTP", totpCode)
                                         scope.launch {
-                                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("TOTP", totpCode)))
-                                            snackbarHostState.showSnackbar("2FA code copied")
+                                            snackbarHostState.showSnackbar("2FA code copied (clears in 30s)")
                                         }
                                         isTotpCopied = true
                                     },
@@ -533,9 +532,9 @@ fun PasswordDetailScreen(
                         value = entry.url,
                         icon = Icons.AutoMirrored.Filled.OpenInNew,
                         onCopy = {
+                            ClipboardHelper.copyAndScheduleClear(context, "Website URL", entry.url)
                             scope.launch {
-                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Website URL", entry.url)))
-                                snackbarHostState.showSnackbar("URL copied")
+                                snackbarHostState.showSnackbar("URL copied (clears in 30s)")
                             }
                         }
                     )

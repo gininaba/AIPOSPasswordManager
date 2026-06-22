@@ -384,6 +384,102 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun importCsv(
+        uri: Uri,
+        onSuccess: (insertedCount: Int) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val importEntries = withContext(Dispatchers.IO) {
+                    val contentResolver = getApplication<Application>().contentResolver
+                    contentResolver.openInputStream(uri)?.use { stream ->
+                        val parsed = com.aipos.aipospm.security.CsvParser.parse(stream)
+                        com.aipos.aipospm.security.CsvImportMapper.map(parsed)
+                    } ?: throw IllegalStateException("Could not open the selected CSV file.")
+                }
+
+                if (importEntries.isEmpty()) {
+                    throw IllegalArgumentException("No valid credentials found in the CSV file.")
+                }
+
+                data class EncryptedImportEntry(
+                    val title: String,
+                    val username: String,
+                    val encPw: String,
+                    val iv: String,
+                    val url: String,
+                    val notes: String,
+                    val categoryName: String?,
+                    val isFavorite: Boolean,
+                    val encTotp: String?,
+                    val totpIv: String?
+                )
+
+                val encryptedEntries = importEntries.map { entry ->
+                    val (encPw, iv) = cryptoManager.encrypt(entry.password)
+                    val totpPair = if (!entry.totpSecret.isNullOrBlank()) {
+                        cryptoManager.encrypt(entry.totpSecret)
+                    } else null
+                    EncryptedImportEntry(
+                        title = entry.title,
+                        username = entry.username,
+                        encPw = encPw,
+                        iv = iv,
+                        url = entry.url,
+                        notes = entry.notes,
+                        categoryName = entry.categoryName,
+                        isFavorite = entry.isFavorite,
+                        encTotp = totpPair?.first,
+                        totpIv = totpPair?.second
+                    )
+                }
+
+                db.withTransaction {
+                    val existingCategories = db.categoryDao().getAllCategoriesSync()
+                    val categoryCache = existingCategories.associateBy { it.name.lowercase() }.toMutableMap()
+
+                    for (entry in encryptedEntries) {
+                        var categoryId: Int? = null
+                        val catName = entry.categoryName?.trim()
+                        if (!catName.isNullOrEmpty()) {
+                            val cachedCat = categoryCache[catName.lowercase()]
+                            if (cachedCat != null) {
+                                categoryId = cachedCat.id
+                            } else {
+                                val newCatId = db.categoryDao().insertCategory(
+                                    Category(name = catName)
+                                ).toInt()
+                                val newCat = Category(id = newCatId, name = catName)
+                                categoryCache[catName.lowercase()] = newCat
+                                categoryId = newCatId
+                            }
+                        }
+
+                        passwordDao.insertPassword(
+                            PasswordEntry(
+                                title = entry.title,
+                                username = entry.username,
+                                encryptedPassword = entry.encPw,
+                                iv = entry.iv,
+                                url = entry.url,
+                                notes = entry.notes,
+                                categoryId = categoryId,
+                                isFavorite = entry.isFavorite,
+                                encryptedTotpSecret = entry.encTotp,
+                                totpIv = entry.totpIv
+                            )
+                        )
+                    }
+                }
+
+                onSuccess(importEntries.size)
+            } catch (e: Exception) {
+                onError(e.message ?: "Failed to import CSV")
+            }
+        }
+    }
+
     private var loadJob: kotlinx.coroutines.Job? = null
 
     fun loadPassword(id: Int) {

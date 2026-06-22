@@ -88,6 +88,11 @@ import kotlinx.coroutines.launch
 import com.aipos.aipospm.ui.viewmodels.ApiKeyViewModel
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
+import com.aipos.aipospm.security.ClipboardHelper
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.aipos.aipospm.ui.components.bounceClick
+import com.aipos.aipospm.ui.components.pressScale
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,7 +117,7 @@ fun HomeScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
 
     // Dynamic top bar title per tab
     val topBarTitle = when (selectedTab) {
@@ -181,11 +186,14 @@ fun HomeScreen(
         floatingActionButton = {
             when (selectedTab) {
                 0 -> {
+                    val interactionSource = remember { MutableInteractionSource() }
                     ExtendedFloatingActionButton(
                         onClick = onNavigateToAddPassword,
+                        interactionSource = interactionSource,
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        shape = RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.pressScale(interactionSource)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Add")
                         Spacer(modifier = Modifier.width(8.dp))
@@ -193,21 +201,27 @@ fun HomeScreen(
                     }
                 }
                 1 -> {
+                    val interactionSource = remember { MutableInteractionSource() }
                     FloatingActionButton(
                         onClick = onNavigateToAddPassword,
+                        interactionSource = interactionSource,
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        shape = RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.pressScale(interactionSource)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Add Password")
                     }
                 }
                 2 -> {
+                    val interactionSource = remember { MutableInteractionSource() }
                     FloatingActionButton(
                         onClick = onNavigateToAddApiKey,
+                        interactionSource = interactionSource,
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        shape = RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.pressScale(interactionSource)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "Add API Key")
                     }
@@ -238,16 +252,16 @@ fun HomeScreen(
                     onNavigateToAddPassword = onNavigateToAddPassword,
                     onNavigateToAddApiKey = onNavigateToAddApiKey,
                     onCopyUsername = { entry ->
+                        ClipboardHelper.copyAndScheduleClear(context, "Username", entry.username)
                         scope.launch {
-                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Username", entry.username)))
-                            snackbarHostState.showSnackbar("Username copied")
+                            snackbarHostState.showSnackbar("Username copied (clears in 30s)")
                         }
                     },
                     onCopyApiKey = { entry ->
+                        val decrypted = apiKeyViewModel.decryptApiKey(entry)
+                        ClipboardHelper.copyAndScheduleClear(context, "API Key", decrypted)
                         scope.launch {
-                            val decrypted = apiKeyViewModel.decryptApiKey(entry)
-                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("API Key", decrypted)))
-                            snackbarHostState.showSnackbar("API Key copied")
+                            snackbarHostState.showSnackbar("API Key copied (clears in 30s)")
                         }
                     },
                     modifier = Modifier.padding(padding)
@@ -313,36 +327,9 @@ private fun DashboardContent(
         else -> DangerRed
     }
 
-    val gradientBrush = when {
-        totalEntries == 0 -> Brush.linearGradient(
-            colors = listOf(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-            )
-        )
-        score == 100 -> Brush.linearGradient(
-            colors = listOf(
-                SecurityGreen.copy(alpha = 0.15f),
-                SecurityGreen.copy(alpha = 0.05f)
-            )
-        )
-        score >= 70 -> Brush.linearGradient(
-            colors = listOf(
-                WarningAmber.copy(alpha = 0.15f),
-                WarningAmber.copy(alpha = 0.05f)
-            )
-        )
-        else -> Brush.linearGradient(
-            colors = listOf(
-                DangerRed.copy(alpha = 0.15f),
-                DangerRed.copy(alpha = 0.05f)
-            )
-        )
-    }
-
     val borderStroke = BorderStroke(
         width = 1.dp,
-        color = ringColor.copy(alpha = 0.4f)
+        color = ringColor.copy(alpha = 0.3f)
     )
 
     // Entrance animation state
@@ -370,50 +357,45 @@ private fun DashboardContent(
                 enter = fadeIn(tween(400)) + slideInVertically(tween(400)) { -40 }
             ) {
                 Card(
-                    onClick = onNavigateToPasswords,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .animateContentSize(),
+                        .animateContentSize()
+                        .bounceClick { onNavigateToPasswords() },
                     shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     ),
                     border = borderStroke,
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(gradientBrush)
-                            .padding(20.dp)
+                            .padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            VaultScoreRing(
-                                score = score,
-                                color = ringColor,
-                                totalEntries = totalEntries,
-                                modifier = Modifier.size(76.dp)
+                        VaultScoreRing(
+                            score = score,
+                            color = ringColor,
+                            totalEntries = totalEntries,
+                            modifier = Modifier.size(76.dp)
+                        )
+                        
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = statusTitle,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                            
-                            Spacer(modifier = Modifier.width(16.dp))
-                            
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = statusTitle,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = statusDesc,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = statusDesc,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -436,6 +418,7 @@ private fun DashboardContent(
                         icon = Icons.Default.Password,
                         containerColor = MaterialTheme.colorScheme.primary,
                         onClick = onNavigateToPasswords,
+                        onAddClick = onNavigateToAddPassword,
                         modifier = Modifier.weight(1f)
                     )
                     SummaryCard(
@@ -444,52 +427,68 @@ private fun DashboardContent(
                         icon = Icons.Default.VpnKey,
                         containerColor = MaterialTheme.colorScheme.secondary,
                         onClick = onNavigateToApiKeys,
+                        onAddClick = onNavigateToAddApiKey,
                         modifier = Modifier.weight(1f)
                     )
                 }
             }
         }
 
-        // Quick Actions Grid
+        // Password Generator Row
         item {
             AnimatedVisibility(
                 visible = isVisible,
-                enter = fadeIn(tween(500, delayMillis = 200)) + slideInVertically(tween(500, delayMillis = 200)) { -30 }
+                enter = fadeIn(tween(500, delayMillis = 150)) + slideInVertically(tween(500, delayMillis = 150)) { -30 }
             ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Quick Actions",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bounceClick { onNavigateToPasswordGenerator() },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        QuickActionCard(
-                            title = "Add Password",
-                            icon = Icons.Default.Password,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                            iconColor = MaterialTheme.colorScheme.primary,
-                            onClick = onNavigateToAddPassword,
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionCard(
-                            title = "Add API Key",
-                            icon = Icons.Default.VpnKey,
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f),
-                            iconColor = MaterialTheme.colorScheme.secondary,
-                            onClick = onNavigateToAddApiKey,
-                            modifier = Modifier.weight(1f)
-                        )
-                        QuickActionCard(
-                            title = "Generator",
-                            icon = Icons.Default.Key,
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f),
-                            iconColor = MaterialTheme.colorScheme.tertiary,
-                            onClick = onNavigateToPasswordGenerator,
-                            modifier = Modifier.weight(1f)
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Key,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Password Generator",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Create strong, random passwords locally",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outlineVariant,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -523,7 +522,8 @@ private fun DashboardContent(
                         } else {
                             onCopyApiKey((item as FavoriteItem.ApiKey).entry)
                         }
-                    }
+                    },
+                    modifier = Modifier.animateItem()
                 )
             }
         }
@@ -533,7 +533,7 @@ private fun DashboardContent(
             item {
                 AnimatedVisibility(
                     visible = isVisible,
-                    enter = fadeIn(tween(600, delayMillis = 300))
+                    enter = fadeIn(tween(600, delayMillis = 200))
                 ) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -653,16 +653,18 @@ private fun SummaryCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     containerColor: Color,
     onClick: () -> Unit,
+    onAddClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
-        onClick = onClick,
-        modifier = modifier.animateContentSize(),
-        shape = RoundedCornerShape(20.dp),
+        modifier = modifier
+            .animateContentSize()
+            .bounceClick(onClick),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = containerColor.copy(alpha = 0.08f)
         ),
-        border = BorderStroke(1.dp, containerColor.copy(alpha = 0.2f))
+        border = BorderStroke(1.dp, containerColor.copy(alpha = 0.15f))
     ) {
         Column(
             modifier = Modifier
@@ -676,8 +678,8 @@ private fun SummaryCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(10.dp))
                         .background(containerColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -688,12 +690,22 @@ private fun SummaryCard(
                         tint = containerColor
                     )
                 }
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = containerColor.copy(alpha = 0.6f)
-                )
+                
+                IconButton(
+                    onClick = onAddClick,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(containerColor.copy(alpha = 0.15f))
+                        .bounceClick { onAddClick() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add $title",
+                        modifier = Modifier.size(16.dp),
+                        tint = containerColor
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(16.dp))
             Text(
@@ -702,6 +714,7 @@ private fun SummaryCard(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
@@ -713,64 +726,16 @@ private fun SummaryCard(
 }
 
 @Composable
-private fun QuickActionCard(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    containerColor: Color,
-    iconColor: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = BorderStroke(1.dp, iconColor.copy(alpha = 0.15f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(iconColor.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = iconColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
 private fun FavoriteItemCard(
     item: FavoriteItem,
     onClick: () -> Unit,
-    onCopy: () -> Unit
+    onCopy: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .bounceClick(onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow

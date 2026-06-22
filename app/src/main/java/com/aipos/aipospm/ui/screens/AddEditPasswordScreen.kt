@@ -50,12 +50,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import androidx.compose.material.icons.filled.QrCodeScanner
 import com.aipos.aipospm.security.TotpHelper
+import com.aipos.aipospm.ui.components.CameraPreview
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
 
@@ -83,6 +92,17 @@ fun AddEditPasswordScreen(
     var isEditing by rememberSaveable { mutableStateOf(false) }
     var totpSecret by rememberSaveable { mutableStateOf("") }
     var showTotpField by rememberSaveable { mutableStateOf(false) }
+    var showScanner by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            if (isGranted) {
+                showScanner = true
+            }
+        }
+    )
 
     var isPasswordBreached by remember { mutableStateOf(false) }
 
@@ -403,6 +423,26 @@ fun AddEditPasswordScreen(
                             placeholder = { Text("e.g., JBSW43DPEHPK3PXP") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = {
+                                        val permissionCheck = ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.CAMERA
+                                        )
+                                        if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
+                                            showScanner = true
+                                        } else {
+                                            permissionLauncher.launch(Manifest.permission.CAMERA)
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.QrCodeScanner,
+                                        contentDescription = "Scan QR Code"
+                                    )
+                                }
+                            },
                             shape = RoundedCornerShape(12.dp)
                         )
                         if (totpSecret.isNotBlank()) {
@@ -456,5 +496,96 @@ fun AddEditPasswordScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+    if (showScanner) {
+        AlertDialog(
+            onDismissRequest = { showScanner = false },
+            title = { Text("Scan TOTP QR Code") },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                ) {
+                    CameraPreview(
+                        onQrCodeScanned = { qrResult ->
+                            val parsed = parseOtpAuthUri(qrResult)
+                            if (parsed != null) {
+                                val (secret, issuer, label) = parsed
+                                if (secret.isNotEmpty()) {
+                                    totpSecret = secret
+                                    showTotpField = true
+                                    if (title.isBlank() && issuer.isNotEmpty()) {
+                                        title = issuer
+                                    }
+                                    if (username.isBlank() && label.isNotEmpty()) {
+                                        username = label
+                                    }
+                                }
+                                showScanner = false
+                            } else {
+                                if (TotpHelper.isValidBase32(qrResult)) {
+                                    totpSecret = qrResult
+                                    showTotpField = true
+                                    showScanner = false
+                                }
+                            }
+                        }
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showScanner = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+fun parseOtpAuthUri(uriString: String): Triple<String, String, String>? {
+    if (!uriString.startsWith("otpauth://totp/", ignoreCase = true)) return null
+    try {
+        val remaining = uriString.substring("otpauth://totp/".length)
+        val queryStartIndex = remaining.indexOf('?')
+        val pathPart = if (queryStartIndex != -1) remaining.substring(0, queryStartIndex) else remaining
+        val queryPart = if (queryStartIndex != -1) remaining.substring(queryStartIndex + 1) else ""
+
+        // Parse path: could be Issuer:Label or just Label
+        val decodedPath = java.net.URLDecoder.decode(pathPart, "UTF-8")
+        var label = ""
+        var pathIssuer = ""
+        if (decodedPath.contains(":")) {
+            val parts = decodedPath.split(":", limit = 2)
+            pathIssuer = parts[0].trim()
+            label = parts[1].trim()
+        } else {
+            label = decodedPath.trim()
+        }
+
+        // Parse query params
+        val queryParams = mutableMapOf<String, String>()
+        if (queryPart.isNotEmpty()) {
+            val pairs = queryPart.split('&')
+            for (pair in pairs) {
+                val idx = pair.indexOf('=')
+                if (idx != -1) {
+                    val key = java.net.URLDecoder.decode(pair.substring(0, idx), "UTF-8").lowercase()
+                    val value = java.net.URLDecoder.decode(pair.substring(idx + 1), "UTF-8")
+                    queryParams[key] = value
+                }
+            }
+        }
+
+        val secret = queryParams["secret"] ?: ""
+        val queryIssuer = queryParams["issuer"] ?: ""
+        val issuer = queryIssuer.ifEmpty { pathIssuer }
+
+        return Triple(secret, issuer, label)
+    } catch (e: Exception) {
+        return null
     }
 }

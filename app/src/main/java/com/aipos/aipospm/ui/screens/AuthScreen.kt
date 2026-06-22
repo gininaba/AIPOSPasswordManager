@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -42,6 +43,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -81,6 +83,7 @@ fun AuthScreen(
 
     // Track authentication success for exit animation
     var showSuccess by remember { mutableStateOf(false) }
+    var showRecoveryDialog by remember { mutableStateOf(false) }
 
     // Subtle pulse animation on the lock icon
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -288,6 +291,15 @@ fun AuthScreen(
                 }
             }
 
+            if (uiState.isMasterPasswordSet) {
+                TextButton(
+                    onClick = { showRecoveryDialog = true },
+                    modifier = Modifier.padding(top = 12.dp)
+                ) {
+                    Text("Forgot Password? Reset Vault")
+                }
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
 
             // Security badge footer
@@ -298,5 +310,112 @@ fun AuthScreen(
                 textAlign = TextAlign.Center
             )
         }
+    }
+
+    if (showRecoveryDialog) {
+        var recoveryKeyInput by rememberSaveable { mutableStateOf("") }
+        var newRecoveryPassword by rememberSaveable { mutableStateOf("") }
+        var confirmRecoveryPassword by rememberSaveable { mutableStateOf("") }
+        var newPwVisible by rememberSaveable { mutableStateOf(false) }
+        var confirmPwVisible by rememberSaveable { mutableStateOf(false) }
+        var resetError by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { showRecoveryDialog = false },
+            title = { Text("Reset Master Password") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Enter your offline emergency recovery key and a new master password to reset your credentials.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = recoveryKeyInput,
+                        onValueChange = { recoveryKeyInput = it },
+                        label = { Text("Recovery Key") },
+                        placeholder = { Text("AIPOS-XXXX-XXXX-XXXX-XXXX") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = newRecoveryPassword,
+                        onValueChange = { newRecoveryPassword = it },
+                        label = { Text("New Master Password") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = if (newPwVisible) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { newPwVisible = !newPwVisible }) {
+                                Icon(
+                                    imageVector = if (newPwVisible) Icons.Default.VisibilityOff
+                                    else Icons.Default.Visibility,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = confirmRecoveryPassword,
+                        onValueChange = { confirmRecoveryPassword = it },
+                        label = { Text("Confirm New Password") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = if (confirmPwVisible) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { confirmPwVisible = !confirmPwVisible }) {
+                                Icon(
+                                    imageVector = if (confirmPwVisible) Icons.Default.VisibilityOff
+                                    else Icons.Default.Visibility,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    if (resetError != null) {
+                        Text(
+                            text = resetError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newRecoveryPassword != confirmRecoveryPassword) {
+                            resetError = "Passwords do not match"
+                            return@TextButton
+                        }
+                        if (newRecoveryPassword.length < 8) {
+                            resetError = "Password must be at least 8 characters"
+                            return@TextButton
+                        }
+                        val success = authViewModel.resetMasterPasswordWithRecoveryKey(
+                            recoveryKeyInput,
+                            newRecoveryPassword
+                        )
+                        if (success) {
+                            showRecoveryDialog = false
+                        } else {
+                            resetError = "Invalid recovery key"
+                        }
+                    },
+                    enabled = recoveryKeyInput.isNotBlank() && newRecoveryPassword.isNotBlank() && confirmRecoveryPassword.isNotBlank()
+                ) {
+                    Text("Reset Vault")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRecoveryDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

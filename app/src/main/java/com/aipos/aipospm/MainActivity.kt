@@ -26,6 +26,13 @@ class MainActivity : FragmentActivity() {
     private lateinit var generatorViewModel: PasswordGeneratorViewModel
     private val biometricHelper = BiometricHelper()
     private var lastActiveTime: Long = 0
+    private val screenOffReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            if (intent?.action == android.content.Intent.ACTION_SCREEN_OFF) {
+                authViewModel.lock()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,6 +80,12 @@ class MainActivity : FragmentActivity() {
             }
         }
 
+        // Register screen-off receiver
+        registerReceiver(
+            screenOffReceiver,
+            android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF)
+        )
+
         // Auto-trigger biometric on launch if enabled
         if (startDestination == Screen.Auth.route &&
             canUseBiometric &&
@@ -101,6 +114,15 @@ class MainActivity : FragmentActivity() {
                     authViewModel.lock()
                 }
             }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            unregisterReceiver(screenOffReceiver)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

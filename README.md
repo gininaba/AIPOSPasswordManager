@@ -120,6 +120,16 @@ With an active emulator or connected USB device:
 
 ## Recent Improvements & Fixes
 
+* **Advanced Features & Tactile Animation Polish (v1.2.0)**:
+  * **Offline TOTP QR Code Scanner**: Scan 2FA QR codes directly inside the app to auto-fill TOTP fields. Frames are analyzed 100% offline and locally using CameraX and ZXing.
+  * **Master Password Emergency Recovery Key**: Generates a cryptographically secure 16-character alphanumeric key (e.g. `AIPOS-XXXX-XXXX-XXXX-XXXX`) during setup or settings. Allows vault resets on master password lockouts without network dependencies.
+  * **Third-Party CSV Vault Importers**: Import credentials from Bitwarden, KeePass, and 1Password CSV exports. The file is processed main-safely and encrypted in the local database.
+  * **Decluttered Dashboard Layout**: Overhauled the main dashboard by consolidating the redundant Summary Cards and Quick Action Grid into two large, unified, clickable summary cards with embedded inline floating `+` buttons. Replaced visual gradients with a solid clean background to match standard Material M3 palettes.
+  * **Spring-like Tactile Interaction**: Exposes custom scale-on-press modifiers (`bounceClick` and `pressScale`) to provide spring-scale tactile transitions on card items, settings options, primary buttons, and FABs.
+  * **Smooth Screen Transitions**: Implemented slide-in/slide-out navigation globally for screen navigations (sliding left/right and popping right/left).
+  * **List Animations**: Applied `Modifier.animateItem()` to Favorites, Passwords, and API Keys lists for smooth visual updates when items are added, deleted, restored, or filtered.
+  * **Prevented Camera frame lockups**: Fixed a critical bug in `QrCodeAnalyzer` where buffer reading exceptions could leave image frames open, freezing the camera preview. Added a `try-finally` block to guarantee frame cleanup.
+  * **Clipboard Timer Reset**: Fixed a race condition where copying multiple credentials sequentially would trigger premature clipboard clearing. Reschedules now cancel previous timers.
 * **Comprehensive UI/UX Production Polish (v1.1.0)**:
   * **Brand-New Trust-Centric Design**: Migrated the default violet theme to a premium teal-blue and soft indigo palette, using rounded corners (8–32dp) and optimized hierarchy.
   * **Animated Vault Health Meter**: Overhauled the home dashboard with a dynamic circular gauge color-coded by strength, glowing on a 100% score, and utilizing slide-in/fade-in staggered entrance transitions.

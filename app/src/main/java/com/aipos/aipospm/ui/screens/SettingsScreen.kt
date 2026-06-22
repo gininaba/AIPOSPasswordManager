@@ -58,10 +58,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.aipos.aipospm.ui.components.bounceClick
+import com.aipos.aipospm.ui.components.pressScale
+import com.aipos.aipospm.security.ClipboardHelper
 import com.aipos.aipospm.ui.viewmodels.AuthViewModel
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
@@ -107,6 +112,40 @@ fun SettingsScreen(
     var backupPasswordToEnter by remember { mutableStateOf("") }
     var showEnterBackupPasswordDialog by remember { mutableStateOf(false) }
     var importUri by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    // Recovery Key states
+    var showViewKeyPasswordDialog by remember { mutableStateOf(false) }
+    var confirmPasswordInput by remember { mutableStateOf("") }
+    var confirmPasswordVisible by remember { mutableStateOf(false) }
+    var showRecoveryKeyDialog by remember { mutableStateOf(false) }
+    var decryptedRecoveryKey by remember { mutableStateOf("") }
+
+    val csvImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) {}
+
+            passwordViewModel.importCsv(
+                uri = uri,
+                onSuccess = { insertedCount ->
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Successfully imported $insertedCount entries")
+                    }
+                },
+                onError = { error ->
+                    scope.launch {
+                        snackbarHostState.showSnackbar("CSV Import failed: $error")
+                    }
+                }
+            )
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -417,8 +456,9 @@ fun SettingsScreen(
 
             // Change password
             Card(
-                onClick = { showChangePassword = !showChangePassword },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bounceClick { showChangePassword = !showChangePassword },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -499,6 +539,7 @@ fun SettingsScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        val changePasswordBtnInteractionSource = remember { MutableInteractionSource() }
                         Button(
                             onClick = {
                                 val success = authViewModel.changeMasterPassword(
@@ -518,7 +559,8 @@ fun SettingsScreen(
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            interactionSource = changePasswordBtnInteractionSource,
+                            modifier = Modifier.fillMaxWidth().pressScale(changePasswordBtnInteractionSource),
                             shape = RoundedCornerShape(12.dp),
                             enabled = currentPassword.isNotBlank() && newPassword.isNotBlank() && confirmNewPassword.isNotBlank(),
                             colors = ButtonDefaults.buttonColors(
@@ -527,6 +569,39 @@ fun SettingsScreen(
                         ) {
                             Text("Change Password")
                         }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bounceClick { showViewKeyPasswordDialog = true },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Emergency Recovery Key",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "View or copy your emergency recovery key",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -555,8 +630,9 @@ fun SettingsScreen(
 
             // Manage Categories button card
             Card(
-                onClick = onNavigateToManageCategories,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bounceClick(onNavigateToManageCategories),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
@@ -625,6 +701,8 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(16.dp))
+                    val exportBtnInteractionSource = remember { MutableInteractionSource() }
+                    val importBtnInteractionSource = remember { MutableInteractionSource() }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -633,7 +711,8 @@ fun SettingsScreen(
                             onClick = {
                                 exportLauncher.launch("aipospm_backup.bin")
                             },
-                            modifier = Modifier.weight(1f),
+                            interactionSource = exportBtnInteractionSource,
+                            modifier = Modifier.weight(1f).pressScale(exportBtnInteractionSource),
                             shape = RoundedCornerShape(12.dp),
                             enabled = !isBackupInProgress
                         ) {
@@ -643,12 +722,49 @@ fun SettingsScreen(
                             onClick = {
                                 importLauncher.launch(arrayOf("application/octet-stream", "*/*"))
                             },
-                            modifier = Modifier.weight(1f),
+                            interactionSource = importBtnInteractionSource,
+                            modifier = Modifier.weight(1f).pressScale(importBtnInteractionSource),
                             shape = RoundedCornerShape(12.dp),
                             enabled = !isBackupInProgress
                         ) {
                             Text(if (isBackupInProgress) "Working..." else "Import Backup")
                         }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "Import Third-Party Vaults",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Import credentials from Bitwarden, KeePass, or 1Password CSV exports. The file is processed completely offline, and all keys are securely encrypted.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    val csvImportBtnInteractionSource = remember { MutableInteractionSource() }
+                    Button(
+                        onClick = {
+                            csvImportLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv", "*/*"))
+                        },
+                        interactionSource = csvImportBtnInteractionSource,
+                        modifier = Modifier.fillMaxWidth().pressScale(csvImportBtnInteractionSource),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Select and Import CSV")
                     }
                 }
             }
@@ -693,6 +809,139 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+    if (showViewKeyPasswordDialog) {
+        var verifyPasswordInput by remember { mutableStateOf("") }
+        var verifyPasswordVisible by remember { mutableStateOf(false) }
+        var verifyError by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { 
+                showViewKeyPasswordDialog = false 
+                verifyPasswordInput = ""
+                verifyError = null
+            },
+            title = { Text("Confirm Master Password") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "To view your emergency recovery key, please verify your master password.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = verifyPasswordInput,
+                        onValueChange = { verifyPasswordInput = it },
+                        label = { Text("Master Password") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = if (verifyPasswordVisible) VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { verifyPasswordVisible = !verifyPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (verifyPasswordVisible) Icons.Default.VisibilityOff
+                                    else Icons.Default.Visibility,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    if (verifyError != null) {
+                        Text(
+                            text = verifyError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val isCorrect = authViewModel.verifyMasterPassword(verifyPasswordInput)
+                        if (isCorrect) {
+                            val key = authViewModel.getDecryptedRecoveryKey()
+                            if (key != null) {
+                                decryptedRecoveryKey = key
+                                showRecoveryKeyDialog = true
+                                showViewKeyPasswordDialog = false
+                                verifyPasswordInput = ""
+                                verifyError = null
+                            } else {
+                                verifyError = "Recovery key not found. Please set a new password to generate one."
+                            }
+                        } else {
+                            verifyError = "Incorrect master password"
+                        }
+                    },
+                    enabled = verifyPasswordInput.isNotBlank()
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showViewKeyPasswordDialog = false
+                        verifyPasswordInput = ""
+                        verifyError = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showRecoveryKeyDialog) {
+        AlertDialog(
+            onDismissRequest = { showRecoveryKeyDialog = false },
+            title = { Text("Emergency Recovery Key") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        text = "Write down this key or save it in a secure offline location.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        )
+                    ) {
+                        Text(
+                            text = decryptedRecoveryKey,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            ),
+                            color = MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        ClipboardHelper.copyAndScheduleClear(context, "Recovery Key", decryptedRecoveryKey)
+                    }
+                ) {
+                    Text("Copy")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRecoveryKeyDialog = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 }
 

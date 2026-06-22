@@ -77,6 +77,12 @@ import com.aipos.aipospm.ui.viewmodels.ApiKeyViewModel
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.aipos.aipospm.ui.components.bounceClick
+import com.aipos.aipospm.ui.components.pressScale
+import com.aipos.aipospm.security.ClipboardHelper
+import androidx.compose.ui.platform.LocalContext
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ApiKeyListScreen(
@@ -101,11 +107,14 @@ fun ApiKeyListScreen(
             )
         },
         floatingActionButton = {
+            val interactionSource = remember { MutableInteractionSource() }
             FloatingActionButton(
                 onClick = onNavigateToAdd,
+                interactionSource = interactionSource,
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.pressScale(interactionSource)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add API Key")
             }
@@ -138,7 +147,7 @@ fun ApiKeyListContent(
     val searchQuery by apiKeyViewModel.searchQuery.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
 
     Box(modifier = modifier) {
         Column(
@@ -294,6 +303,7 @@ fun ApiKeyListContent(
 
                         SwipeToDismissBox(
                             state = dismissState,
+                            modifier = Modifier.animateItem(),
                             backgroundContent = {
                                 Box(
                                     modifier = Modifier
@@ -328,9 +338,9 @@ fun ApiKeyListContent(
                                 onClick = { onNavigateToDetail(entry.id) },
                                 onFavoriteClick = { apiKeyViewModel.toggleFavorite(entry) },
                                 onCopyName = {
+                                    ClipboardHelper.copyAndScheduleClear(context, "Service Name", entry.serviceName)
                                     scope.launch {
-                                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Service Name", entry.serviceName)))
-                                        snackbarHostState.showSnackbar("Service name copied")
+                                        snackbarHostState.showSnackbar("Service name copied (clears in 30s)")
                                     }
                                 }
                             )
@@ -367,8 +377,9 @@ private fun ApiKeyCard(
     onCopyName: () -> Unit
 ) {
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .bounceClick(onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow

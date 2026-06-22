@@ -12,7 +12,8 @@ data class GeneratorUiState(
     val useLowercase: Boolean = true,
     val useDigits: Boolean = true,
     val useSymbols: Boolean = true,
-    val strength: PasswordStrength = PasswordStrength.NONE
+    val strength: PasswordStrength = PasswordStrength.NONE,
+    val history: List<String> = emptyList()
 )
 
 class PasswordGeneratorViewModel : ViewModel() {
@@ -22,6 +23,15 @@ class PasswordGeneratorViewModel : ViewModel() {
 
     init {
         generatePassword()
+    }
+
+    fun recordCurrentPasswordInHistory() {
+        val current = _uiState.value.generatedPassword
+        if (current.isNotEmpty() && !_uiState.value.history.contains(current)) {
+            _uiState.value = _uiState.value.copy(
+                history = (listOf(current) + _uiState.value.history).take(10)
+            )
+        }
     }
 
     fun updateLength(length: Int) {

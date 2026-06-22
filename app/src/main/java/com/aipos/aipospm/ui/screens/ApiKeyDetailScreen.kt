@@ -50,9 +50,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import android.content.ClipData
-import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalContext
+import com.aipos.aipospm.security.ClipboardHelper
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -74,7 +73,7 @@ fun ApiKeyDetailScreen(
     val uiState by apiKeyViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val clipboard = LocalClipboard.current
+    val context = LocalContext.current
     var keyVisible by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var isKeyCopied by remember { mutableStateOf(false) }
@@ -254,9 +253,9 @@ fun ApiKeyDetailScreen(
                             }
                             IconButton(
                                 onClick = {
+                                    ClipboardHelper.copyAndScheduleClear(context, "API Key", decryptedKey)
                                     scope.launch {
-                                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("API Key", decryptedKey)))
-                                        snackbarHostState.showSnackbar("API key copied")
+                                        snackbarHostState.showSnackbar("API key copied (clears in 30s)")
                                     }
                                     isKeyCopied = true
                                 },

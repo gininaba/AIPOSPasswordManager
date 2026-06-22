@@ -139,4 +139,30 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun isBiometricEnabled(): Boolean = masterPasswordManager.isBiometricEnabled()
+
+    fun generateRecoveryKey(): String {
+        return masterPasswordManager.generateRecoveryKey()
+    }
+
+    fun getDecryptedRecoveryKey(): String? {
+        return masterPasswordManager.getDecryptedRecoveryKey()
+    }
+
+    fun resetMasterPasswordWithRecoveryKey(key: String, newPw: String): Boolean {
+        if (newPw.length < 6) {
+            _uiState.value = _uiState.value.copy(error = "Password must be at least 6 characters")
+            return false
+        }
+        val success = masterPasswordManager.resetMasterPasswordWithRecoveryKey(key, newPw)
+        _uiState.value = if (success) {
+            _uiState.value.copy(
+                isMasterPasswordSet = true,
+                isAuthenticated = true,
+                error = null
+            )
+        } else {
+            _uiState.value.copy(error = "Invalid recovery key")
+        }
+        return success
+    }
 }
