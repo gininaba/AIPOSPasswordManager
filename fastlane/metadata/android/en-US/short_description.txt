@@ -1,0 +1,1 @@
+Premium, fully offline, and secure Android password and 2FA TOTP manager.

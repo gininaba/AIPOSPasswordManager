@@ -6,6 +6,7 @@ A premium, fully offline, and highly secure Android application for storing pass
 [![Android SDK](https://img.shields.io/badge/Android%20SDK-35%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
 [![Security](https://img.shields.io/badge/Security-Android%20Keystore-blue?style=for-the-badge)](https://developer.android.com/training/articles/keystore)
 [![Network](https://img.shields.io/badge/Network-100%25%20Offline-brightgreen?style=for-the-badge)](https://github.com/gininaba/AIPOSPasswordManager)
+[![F-Droid](https://img.shields.io/f-droid/v/com.aipos.aipospm?style=for-the-badge&logo=f-droid&logoColor=white)](https://f-droid.org/packages/com.aipos.aipospm/)
 
 ---
 
@@ -88,6 +89,14 @@ graph TB
 
 ## Getting Started
 
+### Installation (F-Droid)
+
+AIPOS Password Manager is fully compliant with the F-Droid inclusion policy. You can download and install it via the official F-Droid app store:
+
+<a href="https://f-droid.org/packages/com.aipos.aipospm/">
+  <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80"/>
+</a>
+
 ### Prerequisites
 
 * Android Studio Koala / Ladybug or newer
@@ -163,3 +172,9 @@ With an active emulator or connected USB device:
 | **Backup Encryption** | PBKDF2 + AES-256-GCM | 10,000 iterations for backup key derivation |
 | **Secure Preferences** | EncryptedSharedPreferences | Keys encrypted using AES256_SIV, values using AES256_GCM |
 | **Network Footprint** | None | No `INTERNET` permission declared |
+
+---
+
+## License
+
+This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for the full license text.

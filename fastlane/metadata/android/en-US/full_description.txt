@@ -1,0 +1,18 @@
+AIPOS Password Manager is a premium, fully offline, and highly secure Android application for storing passwords, API keys, and 2FA secrets. Designed with modern Material You guidelines, hardware-backed cryptography via Android Keystore, and a local-first architecture.
+
+Key Features:
+
+* Dual Vault Support: Seamlessly manage credentials (passwords, usernames, URLs) and API keys with a tailored developer experience.
+* Premium Design System: Visual identity featuring a trust-centric palette (teal-blue, soft indigo, warm amber) and native Material You dynamic styling on Android 12+.
+* Animated Vault Health Dashboard: Central dashboard featuring an animated health score circle, staggered entrance animations, and quick actions.
+* Hardened Security:
+  - AES-256-GCM encryption with hardware-backed keys inside the Android Keystore.
+  - PBKDF2 with HmacSHA256 (120,000 iterations) for master password verification.
+  - EncryptedSharedPreferences to safely cache user authentication metadata.
+  - Native Biometric Prompt support.
+* Portable Encrypted Backups: Export and import your local database to an encrypted JSON backup file using a password derived via PBKDF2 (10,000 iterations) + AES-256-GCM.
+* Offline Breach Check: Real-time evaluation of master passwords and entry credentials against a bundled database of common weak passwords—without making a single network request.
+* Built-in 2FA Authenticator (TOTP): Scan QR codes directly offline using the built-in CameraX scanner and generate time-based one-time passwords directly within the app.
+* Auto-Lock Timeout: Configurable inactivity timers (Immediately, 1 min, 5 min, 10 min, Never) to keep your vault secure when backgrounded.
+* 100% Offline & Private: Zero network permissions declared. Your data never leaves your device.
+* Third-Party CSV Importers: Import credentials from Bitwarden, KeePass, and 1Password CSV exports.
