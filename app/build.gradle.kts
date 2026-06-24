@@ -8,6 +8,11 @@ android {
     namespace = "com.aipos.aipospm"
     compileSdk = 37
 
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     defaultConfig {
         applicationId = "com.aipos.aipospm"
         minSdk = 24
