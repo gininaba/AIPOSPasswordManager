@@ -23,6 +23,9 @@ android {
             optimization {
                 enable = false
             }
+            vcsInfo {
+                include = false
+            }
         }
     }
     compileOptions {
