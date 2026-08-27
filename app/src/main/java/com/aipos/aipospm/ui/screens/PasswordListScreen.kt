@@ -292,12 +292,13 @@ fun PasswordListContent(
                         key = { it.id }
                     ) { entry ->
                         val dismissState = rememberSwipeToDismissBoxState(
+                            positionalThreshold = { distance -> distance * 0.5f },
                             confirmValueChange = { dismissValue ->
                                 if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
                                     passwordViewModel.deletePassword(entry)
                                     scope.launch {
                                         val result = snackbarHostState.showSnackbar(
-                                            message = "Password deleted",
+                                            message = "Password '${entry.title}' deleted",
                                             actionLabel = "Undo"
                                         )
                                         if (result == SnackbarResult.ActionPerformed) {

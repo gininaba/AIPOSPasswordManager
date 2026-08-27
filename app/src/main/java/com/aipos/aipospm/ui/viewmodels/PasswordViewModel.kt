@@ -19,8 +19,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -119,8 +121,14 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     val favoritePasswords: StateFlow<List<PasswordEntry>> = passwordDao.getFavoritePasswords()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
     val breachedPasswordCount: StateFlow<Int> = passwords
+        // Absorb rapid bursts (e.g. Room emitting once per row during a CSV import of 200+ entries)
+        // so we don't pay 200 Keystore decrypt calls per emission during an import.
+        .debounce(300L)
+        // Move the expensive Keystore decryption + set-lookup off the main thread.
         .map { list -> list.count { isPasswordBreached(decryptPassword(it)) } }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     private val _uiState = MutableStateFlow(PasswordUiState())
@@ -510,7 +518,7 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     fun restorePassword(entry: PasswordEntry) {
         viewModelScope.launch {
             try {
-                passwordDao.insertPassword(entry)
+                passwordDao.insertPassword(entry.copy(updatedAt = System.currentTimeMillis()))
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = "Failed to restore: ${e.message}")
             }

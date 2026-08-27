@@ -284,12 +284,13 @@ fun ApiKeyListContent(
                         key = { it.id }
                     ) { entry ->
                         val dismissState = rememberSwipeToDismissBoxState(
+                            positionalThreshold = { distance -> distance * 0.5f },
                             confirmValueChange = { dismissValue ->
                                 if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
                                     apiKeyViewModel.deleteApiKey(entry)
                                     scope.launch {
                                         val result = snackbarHostState.showSnackbar(
-                                            message = "API key deleted",
+                                            message = "API key '${entry.serviceName}' deleted",
                                             actionLabel = "Undo"
                                         )
                                         if (result == SnackbarResult.ActionPerformed) {

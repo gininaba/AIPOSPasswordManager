@@ -133,7 +133,7 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     fun restoreApiKey(entry: ApiKeyEntry) {
         viewModelScope.launch {
             try {
-                apiKeyDao.insertApiKey(entry)
+                apiKeyDao.insertApiKey(entry.copy(updatedAt = System.currentTimeMillis()))
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = "Failed to restore: ${e.message}")
             }

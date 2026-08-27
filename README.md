@@ -129,6 +129,13 @@ With an active emulator or connected USB device:
 
 ## Recent Improvements & Fixes
 
+* **Usability & Swipe-to-Delete Refinements (v1.2.2)**:
+  * **Reliable Undo Restoration**: Solved a list sync issue where undoing a deletion did not show the restored item instantly. Restored items now get re-inserted with the current timestamp to appear immediately at the top of the sorted lists.
+  * **Accidental Delete Prevention**: Configured the swipe-to-dismiss threshold to require dragging across 50% of the card width, preventing diagonal scroll motions from accidentally deleting entries.
+  * **Descriptive Delete Confirmations**: Contextualized undo alerts to show the name of the specific item deleted.
+* **Large Vault Scroll Performance (v1.2.1)**:
+  * **Optimized Vault Health Computations**: Offloaded cryptographically heavy Android Keystore decryption tasks to background execution using Dispatchers.Default, preventing UI thread blockage during scrolling.
+  * **Debounced Database Emissions**: Implemented a 300ms debounce on list flow changes to group rapid database updates (e.g. during CSV imports) into a single sweep, avoiding up to 40,000 redundant decryption calls.
 * **Advanced Features & Tactile Animation Polish (v1.2.0)**:
   * **Offline TOTP QR Code Scanner**: Scan 2FA QR codes directly inside the app to auto-fill TOTP fields. Frames are analyzed 100% offline and locally using CameraX and ZXing.
   * **Master Password Emergency Recovery Key**: Generates a cryptographically secure 16-character alphanumeric key (e.g. `AIPOS-XXXX-XXXX-XXXX-XXXX`) during setup or settings. Allows vault resets on master password lockouts without network dependencies.
