@@ -185,3 +185,7 @@ With an active emulator or connected USB device:
 ## License
 
 This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for the full license text.
+
+<div align="center">
+  <sub>ジンsan Design | gininaba</sub>
+</div>
