@@ -112,6 +112,7 @@ class MainActivity : FragmentActivity() {
                 val elapsed = System.currentTimeMillis() - lastActiveTime
                 if (elapsed > timeoutMinutes * 60 * 1000) {
                     authViewModel.lock()
+                    lastActiveTime = 0L
                 }
             }
         }

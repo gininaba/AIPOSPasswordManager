@@ -29,6 +29,9 @@ interface ApiKeyDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertApiKey(entry: ApiKeyEntry)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertApiKeys(entries: List<ApiKeyEntry>)
+
     @Update
     suspend fun updateApiKey(entry: ApiKeyEntry)
 

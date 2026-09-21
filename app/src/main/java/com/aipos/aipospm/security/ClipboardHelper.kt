@@ -16,28 +16,43 @@ interface ClipboardDelegate {
 }
 
 class SystemClipboardDelegate(private val context: Context) : ClipboardDelegate {
-    private val clipboard: ClipboardManager by lazy {
-        context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    private val clipboard: ClipboardManager? by lazy {
+        try {
+            context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        } catch (e: Exception) {
+            null
+        }
     }
 
     override fun setPrimaryClip(label: String, text: String) {
-        val clip = ClipData.newPlainText(label, text)
-        clipboard.setPrimaryClip(clip)
+        try {
+            val clip = ClipData.newPlainText(label, text)
+            clipboard?.setPrimaryClip(clip)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun getPrimaryClipText(): String? {
-        val clip = clipboard.primaryClip
-        if (clip != null && clip.itemCount > 0) {
-            return clip.getItemAt(0).text?.toString()
+        return try {
+            val clip = clipboard?.primaryClip
+            if (clip != null && clip.itemCount > 0) {
+                clip.getItemAt(0).text?.toString()
+            } else null
+        } catch (e: Exception) {
+            null
         }
-        return null
     }
 
     override fun clearPrimaryClip() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            clipboard.clearPrimaryClip()
-        } else {
-            clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                clipboard?.clearPrimaryClip()
+            } else {
+                clipboard?.setPrimaryClip(ClipData.newPlainText("", ""))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

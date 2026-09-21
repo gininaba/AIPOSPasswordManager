@@ -6,13 +6,16 @@ import androidx.lifecycle.viewModelScope
 import com.aipos.aipospm.data.ApiKeyEntry
 import com.aipos.aipospm.data.AppDatabase
 import com.aipos.aipospm.security.CryptoManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -54,7 +57,8 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
         } else {
             list.filter { it.categoryId == categoryId }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }.flowOn(Dispatchers.Default)
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val apiKeyCount: StateFlow<Int> = apiKeyDao.getApiKeyCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
@@ -84,6 +88,17 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 val (encrypted, iv) = cryptoManager.encrypt(apiKey)
+                val createdAt = if (id != null && id > 0) {
+                    val selected = _uiState.value.selectedApiKey
+                    if (selected != null && selected.id == id) {
+                        selected.createdAt
+                    } else {
+                        apiKeyDao.getApiKeyById(id).first()?.createdAt ?: System.currentTimeMillis()
+                    }
+                } else {
+                    System.currentTimeMillis()
+                }
+
                 val entry = ApiKeyEntry(
                     id = id ?: 0,
                     serviceName = serviceName,
@@ -92,9 +107,7 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
                     notes = notes,
                     categoryId = categoryId,
                     isFavorite = isFavorite,
-                    createdAt = if (id != null) {
-                        _uiState.value.selectedApiKey?.createdAt ?: System.currentTimeMillis()
-                    } else System.currentTimeMillis(),
+                    createdAt = createdAt,
                     updatedAt = System.currentTimeMillis()
                 )
                 if (id != null) {
@@ -133,7 +146,7 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     fun restoreApiKey(entry: ApiKeyEntry) {
         viewModelScope.launch {
             try {
-                apiKeyDao.insertApiKey(entry.copy(updatedAt = System.currentTimeMillis()))
+                apiKeyDao.insertApiKey(entry)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = "Failed to restore: ${e.message}")
             }

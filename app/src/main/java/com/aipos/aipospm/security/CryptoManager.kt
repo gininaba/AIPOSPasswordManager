@@ -22,30 +22,40 @@ class CryptoManager {
         private const val GCM_TAG_LENGTH = 128
     }
 
+    @Volatile
+    private var cachedSecretKey: SecretKey? = null
+
     private fun getOrCreateSecretKey(): SecretKey {
-        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        cachedSecretKey?.let { return it }
 
-        // Return existing key if available
-        keyStore.getEntry(KEYSTORE_ALIAS, null)?.let { entry ->
-            return (entry as KeyStore.SecretKeyEntry).secretKey
+        return synchronized(this) {
+            cachedSecretKey?.let { return it }
+
+            val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+
+            val key = keyStore.getEntry(KEYSTORE_ALIAS, null)?.let { entry ->
+                (entry as KeyStore.SecretKeyEntry).secretKey
+            } ?: run {
+                val keyGenerator = KeyGenerator.getInstance(
+                    KeyProperties.KEY_ALGORITHM_AES,
+                    ANDROID_KEYSTORE
+                )
+                val keySpec = KeyGenParameterSpec.Builder(
+                    KEYSTORE_ALIAS,
+                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                )
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setKeySize(256)
+                    .build()
+
+                keyGenerator.init(keySpec)
+                keyGenerator.generateKey()
+            }
+
+            cachedSecretKey = key
+            key
         }
-
-        // Generate a new key
-        val keyGenerator = KeyGenerator.getInstance(
-            KeyProperties.KEY_ALGORITHM_AES,
-            ANDROID_KEYSTORE
-        )
-        val keySpec = KeyGenParameterSpec.Builder(
-            KEYSTORE_ALIAS,
-            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-        )
-            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-            .setKeySize(256)
-            .build()
-
-        keyGenerator.init(keySpec)
-        return keyGenerator.generateKey()
     }
 
     /**

@@ -28,7 +28,7 @@ A premium, fully offline, and highly secure Android application for storing pass
   * **EncryptedSharedPreferences** to safely cache user authentication metadata.
   * Native **Biometric Prompt** support (`BIOMETRIC_STRONG`).
 * **Portable Encrypted Backups**: Export and import your local database to an encrypted JSON backup file. Decoupled from hardware keys using a custom user backup password derived via PBKDF2 (10,000 iterations) + AES-256-GCM, allowing seamless transfer across devices.
-* **Offline Breach Check**: Real-time evaluation of master passwords and entry credentials against a bundled database of common weak passwords—without making a single network request.
+* **Offline Breach Check & Action Navigation**: Real-time evaluation of master passwords and entry credentials against a bundled database of common weak passwords—without making a single network request. Tapping the Vault Health action banner instantly opens the Passwords tab with pre-selected compromised password filtering, prominent red warning badges, and danger-red card highlights.
 * **Built-in 2FA Authenticator (TOTP)**: Generate time-based one-time passwords directly within the app. Stores Base32 secrets encrypted at rest and calculates codes completely offline without needing a separate authenticator app.
 * **Auto-Lock Timeout**: Configurable inactivity timers (Immediately, 1 min, 5 min, 10 min, Never) to keep your vault secure when backgrounded.
 * **100% Offline & Private**: Zero network permissions declared in `AndroidManifest.xml`. Your data never leaves your device.
@@ -129,6 +129,13 @@ With an active emulator or connected USB device:
 
 ## Recent Improvements & Fixes
 
+* **Vault Health Compromised Password Filtering & Visual Highlighting (v1.3.0)**:
+  * **Direct Action Navigation**: Tapping the Vault Health status card ("Action Required: weak/compromised password detected") on the Home screen directly opens the Passwords tab with a pre-selected **Compromised** filter chip active.
+  * **Visual Warning Badges & Solid Card Surfaces**: Compromised password cards are highlighted with a prominent red `Compromised` warning badge tag, red shield avatar, red left accent bar, and red card border (`DangerRed`). Using solid 100% opaque card containers (`surfaceContainerLow`) guarantees that swipe-to-delete background icons never bleed through the resting card.
+  * **Dedicated Filter Chip**: Added a red `Compromised (N)` chip to the filter bar for one-tap security filtering anytime, alongside a helpful "No compromised passwords!" empty state with a "Show All Passwords" action button.
+* **Layout & Navigation Polish (v1.2.5)**:
+  * **Scaffold FAB Snackbar Lifting**: Connected `Scaffold` snackbar host states across Home, Password, and API Key screens so Material 3 automatically lifts the Floating Action Button (`+`) whenever an "Undo" toast appears, ensuring the "Undo" button is always 100% accessible.
+  * **Original List Order Preservation on Undo**: Fixed item re-ordering on deletion undo by maintaining original `updatedAt` timestamps during restoration, keeping restored items in their exact position instead of jumping to the top of the list.
 * **Usability & Swipe-to-Delete Refinements (v1.2.2)**:
   * **Reliable Undo Restoration**: Solved a list sync issue where undoing a deletion did not show the restored item instantly. Restored items now get re-inserted with the current timestamp to appear immediately at the top of the sorted lists.
   * **Accidental Delete Prevention**: Configured the swipe-to-dismiss threshold to require dragging across 50% of the card width, preventing diagonal scroll motions from accidentally deleting entries.

@@ -1,6 +1,8 @@
 package com.aipos.aipospm.ui.components
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -10,18 +12,31 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 
 /**
- * A custom modifier that adds a tactile scale (spring-like compression) feedback
- * on press/click events, keeping standard Material ripple indication.
+ * A custom modifier that adds a tactile scale (spring compression) feedback
+ * on press/click events with subtle haptic vibration, keeping standard Material ripple indication.
  */
 fun Modifier.bounceClick(
+    onClick: () -> Unit
+): Modifier = bounceClick(enableHaptic = true, onClick = onClick)
+
+fun Modifier.bounceClick(
+    enableHaptic: Boolean,
     onClick: () -> Unit
 ): Modifier = composed {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val haptic = LocalHapticFeedback.current
+
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
         label = "bounceClickScale"
     )
 
@@ -31,12 +46,17 @@ fun Modifier.bounceClick(
     }.clickable(
         interactionSource = interactionSource,
         indication = LocalIndication.current,
-        onClick = onClick
+        onClick = {
+            if (enableHaptic) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            }
+            onClick()
+        }
     )
 }
 
 /**
- * A modifier that applies a scale down effect when pressed, using an existing InteractionSource.
+ * A modifier that applies a spring scale-down effect when pressed, using an existing InteractionSource.
  * Useful for standard Material 3 Buttons/FABs where the click action is handled by the component.
  */
 fun Modifier.pressScale(
@@ -44,7 +64,11 @@ fun Modifier.pressScale(
 ): Modifier = composed {
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
         label = "pressScale"
     )
 
@@ -53,4 +77,5 @@ fun Modifier.pressScale(
         scaleY = scale
     }
 }
+
 

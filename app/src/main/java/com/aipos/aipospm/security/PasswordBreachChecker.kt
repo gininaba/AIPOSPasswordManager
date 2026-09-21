@@ -8,6 +8,7 @@ import java.io.InputStreamReader
  * Checks passwords against a local offline asset database of 2000 common passwords.
  */
 object PasswordBreachChecker {
+    @Volatile
     private var weakPasswords: HashSet<String>? = null
 
     /**
@@ -44,6 +45,7 @@ object PasswordBreachChecker {
         init(context.applicationContext)
         val cleaned = password.trim().lowercase()
         if (cleaned.length < 6) return true
-        return weakPasswords?.contains(cleaned) == true
+        val set = weakPasswords
+        return set?.contains(cleaned) == true
     }
 }

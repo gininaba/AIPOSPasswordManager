@@ -4,13 +4,16 @@ import android.content.ClipData
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -99,7 +103,9 @@ fun PasswordListScreen(
     onNavigateToAdd: () -> Unit,
     onNavigateToDetail: (Int) -> Unit
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Passwords", fontWeight = FontWeight.Bold) },
@@ -131,6 +137,7 @@ fun PasswordListScreen(
             passwordViewModel = passwordViewModel,
             categoryViewModel = categoryViewModel,
             onNavigateToDetail = onNavigateToDetail,
+            snackbarHostState = snackbarHostState,
             modifier = Modifier.padding(padding)
         )
     }
@@ -146,13 +153,15 @@ fun PasswordListContent(
     passwordViewModel: PasswordViewModel,
     categoryViewModel: CategoryViewModel,
     onNavigateToDetail: (Int) -> Unit,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     modifier: Modifier = Modifier
 ) {
     val passwords by passwordViewModel.passwords.collectAsStateWithLifecycle()
     val categories by categoryViewModel.categories.collectAsStateWithLifecycle()
     val selectedCategoryIdFilter by passwordViewModel.selectedCategoryIdFilter.collectAsStateWithLifecycle()
+    val showCompromisedOnlyFilter by passwordViewModel.showCompromisedOnlyFilter.collectAsStateWithLifecycle()
+    val breachedPasswordCount by passwordViewModel.breachedPasswordCount.collectAsStateWithLifecycle()
     val searchQuery by passwordViewModel.searchQuery.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -219,24 +228,60 @@ fun PasswordListContent(
                 )
             }
 
-            // Category filter chips
+            // Category & Security filter chips
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (breachedPasswordCount > 0 || showCompromisedOnlyFilter) {
+                    item {
+                        FilterChip(
+                            selected = showCompromisedOnlyFilter,
+                            onClick = {
+                                passwordViewModel.setShowCompromisedOnlyFilter(!showCompromisedOnlyFilter)
+                            },
+                            label = { Text("Compromised ($breachedPasswordCount)") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = DangerRed,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = DangerRed.copy(alpha = 0.15f),
+                                selectedLabelColor = DangerRed,
+                                selectedLeadingIconColor = DangerRed,
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = showCompromisedOnlyFilter,
+                                selectedBorderColor = DangerRed.copy(alpha = 0.5f)
+                            )
+                        )
+                    }
+                }
                 item {
                     FilterChip(
-                        selected = selectedCategoryIdFilter == null,
-                        onClick = { passwordViewModel.selectCategoryFilter(null) },
+                        selected = selectedCategoryIdFilter == null && !showCompromisedOnlyFilter,
+                        onClick = {
+                            passwordViewModel.setShowCompromisedOnlyFilter(false)
+                            passwordViewModel.selectCategoryFilter(null)
+                        },
                         label = { Text("All") }
                     )
                 }
                 items(categories, key = { it.id }) { category ->
                     FilterChip(
-                        selected = selectedCategoryIdFilter == category.id,
-                        onClick = { passwordViewModel.selectCategoryFilter(category.id) },
+                        selected = selectedCategoryIdFilter == category.id && !showCompromisedOnlyFilter,
+                        onClick = {
+                            passwordViewModel.setShowCompromisedOnlyFilter(false)
+                            passwordViewModel.selectCategoryFilter(category.id)
+                        },
                         label = { Text(category.name) }
                     )
                 }
@@ -255,41 +300,60 @@ fun PasswordListContent(
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                            .background(
+                                if (showCompromisedOnlyFilter) DangerRed.copy(alpha = 0.1f)
+                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Password,
+                            imageVector = if (showCompromisedOnlyFilter) Icons.Default.Shield else Icons.Default.Password,
                             contentDescription = null,
                             modifier = Modifier.size(36.dp),
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = if (showCompromisedOnlyFilter) DangerRed else MaterialTheme.colorScheme.primary
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = if (searchQuery.isNotEmpty() || selectedCategoryIdFilter != null) "No results found"
-                        else "No passwords saved yet",
+                        text = when {
+                            showCompromisedOnlyFilter -> "No compromised passwords!"
+                            searchQuery.isNotEmpty() || selectedCategoryIdFilter != null -> "No results found"
+                            else -> "No passwords saved yet"
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = if (searchQuery.isNotEmpty() || selectedCategoryIdFilter != null) "Try a different search or filter"
-                        else "Tap the + button to add your first password",
+                        text = when {
+                            showCompromisedOnlyFilter -> "All your saved passwords are clean and secure."
+                            searchQuery.isNotEmpty() || selectedCategoryIdFilter != null -> "Try a different search or filter"
+                            else -> "Tap the + button to add your first password"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(top = 4.dp)
                     )
+                    if (showCompromisedOnlyFilter) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        androidx.compose.material3.TextButton(
+                            onClick = { passwordViewModel.setShowCompromisedOnlyFilter(false) }
+                        ) {
+                            Text("Show All Passwords")
+                        }
+                    }
                 }
             } else {
+                val categoryMap = remember(categories) { categories.associateBy { it.id } }
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(
                         items = passwords,
-                        key = { it.id }
+                        key = { it.id },
+                        contentType = { "password_item" }
                     ) { entry ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             positionalThreshold = { distance -> distance * 0.5f },
@@ -342,9 +406,13 @@ fun PasswordListContent(
                             enableDismissFromStartToEnd = false,
                             enableDismissFromEndToStart = true
                         ) {
+                            val isBreached = remember(entry) {
+                                passwordViewModel.isPasswordBreached(passwordViewModel.decryptPassword(entry))
+                            }
                             PasswordCard(
                                 entry = entry,
-                                categoryName = categories.firstOrNull { it.id == entry.categoryId }?.name,
+                                categoryName = categoryMap[entry.categoryId]?.name,
+                                isBreached = isBreached,
                                 onClick = { onNavigateToDetail(entry.id) },
                                 onFavoriteClick = { passwordViewModel.toggleFavorite(entry) },
                                 onCopyUsername = {
@@ -359,12 +427,6 @@ fun PasswordListContent(
                 }
             }
         }
-
-        // Snackbar host overlay for inline usage
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }
 
@@ -382,10 +444,14 @@ fun getCategoryColors(name: String): Pair<Color, Color> {
 private fun PasswordCard(
     entry: PasswordEntry,
     categoryName: String?,
+    isBreached: Boolean,
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onCopyUsername: () -> Unit
 ) {
+    val barColor = if (isBreached) DangerRed else MaterialTheme.colorScheme.primary
+    val borderStroke = if (isBreached) BorderStroke(1.dp, DangerRed.copy(alpha = 0.5f)) else null
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -394,110 +460,158 @@ private fun PasswordCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
+        border = borderStroke,
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 0.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
+                .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left accent bar showing password strength (simple heuristic based on entry)
+            // Left accent bar
             Box(
                 modifier = Modifier
                     .width(4.dp)
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(topEnd = 2.dp, bottomEnd = 2.dp))
-                    .background(MaterialTheme.colorScheme.primary)
+                    .fillMaxHeight()
+                    .background(barColor)
             )
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Icon
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp, top = 14.dp, end = 12.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp),
-                    contentAlignment = Alignment.Center
+                // Icon
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isBreached) DangerRed.copy(alpha = 0.12f)
+                        else MaterialTheme.colorScheme.primaryContainer
+                    )
                 ) {
-                    Text(
-                        text = entry.title.take(1).uppercase(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    Box(
+                        modifier = Modifier.size(44.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isBreached) {
+                            Icon(
+                                imageVector = Icons.Default.Shield,
+                                contentDescription = "Breached",
+                                tint = DangerRed,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        } else {
+                            Text(
+                                text = entry.title.take(1).uppercase(),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = entry.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = entry.username,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = entry.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                }
-                if (categoryName != null) {
-                    val (containerColor, contentColor) = getCategoryColors(categoryName)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Card(
-                        shape = RoundedCornerShape(6.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = containerColor
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    ) {
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = categoryName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = contentColor,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            fontWeight = FontWeight.Medium
+                            text = entry.username,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
+
+                    Row(
+                        modifier = Modifier.padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (isBreached) {
+                            Card(
+                                shape = RoundedCornerShape(6.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = DangerRed.copy(alpha = 0.12f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Shield,
+                                        contentDescription = null,
+                                        tint = DangerRed,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Compromised",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = DangerRed,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        if (categoryName != null) {
+                            val (containerColor, contentColor) = getCategoryColors(categoryName)
+                            Card(
+                                shape = RoundedCornerShape(6.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = containerColor
+                                )
+                            ) {
+                                Text(
+                                    text = categoryName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = contentColor,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
                 }
-            }
 
-            IconButton(onClick = onCopyUsername, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "Copy username",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.outline
-                )
-            }
+                IconButton(onClick = onCopyUsername, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "Copy username",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                }
 
-            IconButton(onClick = onFavoriteClick, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    imageVector = if (entry.isFavorite) Icons.Default.Star
-                    else Icons.Default.StarBorder,
-                    contentDescription = "Favorite",
-                    modifier = Modifier.size(18.dp),
-                    tint = if (entry.isFavorite) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.outline
-                )
+                IconButton(onClick = onFavoriteClick, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = if (entry.isFavorite) Icons.Default.Star
+                        else Icons.Default.StarBorder,
+                        contentDescription = "Favorite",
+                        modifier = Modifier.size(18.dp),
+                        tint = if (entry.isFavorite) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outline
+                    )
+                }
             }
         }
     }

@@ -118,7 +118,9 @@ object TotpHelper {
      * to produce a 6-digit integer code.
      */
     private fun dynamicTruncate(hash: ByteArray): Int {
+        if (hash.size < 4) return 0
         val offset = hash[hash.size - 1].toInt() and 0x0F
+        if (offset + 3 >= hash.size) return 0
         val binary = ((hash[offset].toInt() and 0x7F) shl 24) or
                 ((hash[offset + 1].toInt() and 0xFF) shl 16) or
                 ((hash[offset + 2].toInt() and 0xFF) shl 8) or

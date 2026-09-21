@@ -244,7 +244,14 @@ fun HomeScreen(
                     favoritePasswords = favoritePasswords,
                     favoriteApiKeys = favoriteApiKeys,
                     breachedPasswordCount = breachedPasswordCount,
-                    onNavigateToPasswords = { selectedTab = 1 },
+                    onNavigateToPasswords = {
+                        if (breachedPasswordCount > 0) {
+                            passwordViewModel.setShowCompromisedOnlyFilter(true)
+                        } else {
+                            passwordViewModel.setShowCompromisedOnlyFilter(false)
+                        }
+                        selectedTab = 1
+                    },
                     onNavigateToApiKeys = { selectedTab = 2 },
                     onNavigateToPasswordDetail = onNavigateToPasswordDetail,
                     onNavigateToApiKeyDetail = onNavigateToApiKeyDetail,
@@ -270,12 +277,14 @@ fun HomeScreen(
                     passwordViewModel = passwordViewModel,
                     categoryViewModel = categoryViewModel,
                     onNavigateToDetail = onNavigateToPasswordDetail,
+                    snackbarHostState = snackbarHostState,
                     modifier = Modifier.padding(padding)
                 )
                 2 -> ApiKeyListContent(
                     apiKeyViewModel = apiKeyViewModel,
                     categoryViewModel = categoryViewModel,
                     onNavigateToDetail = onNavigateToApiKeyDetail,
+                    snackbarHostState = snackbarHostState,
                     modifier = Modifier.padding(padding)
                 )
             }
@@ -365,37 +374,68 @@ private fun DashboardContent(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     ),
-                    border = borderStroke,
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    border = BorderStroke(
+                        width = 1.dp,
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                ringColor.copy(alpha = 0.4f),
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                            )
+                        )
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Row(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(
+                                        ringColor.copy(alpha = 0.08f),
+                                        Color.Transparent
+                                    ),
+                                    radius = 500f
+                                )
+                            )
                     ) {
-                        VaultScoreRing(
-                            score = score,
-                            color = ringColor,
-                            totalEntries = totalEntries,
-                            modifier = Modifier.size(76.dp)
-                        )
-                        
-                        Spacer(modifier = Modifier.width(16.dp))
-                        
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = statusTitle,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            VaultScoreRing(
+                                score = score,
+                                color = ringColor,
+                                totalEntries = totalEntries,
+                                modifier = Modifier.size(76.dp)
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = statusDesc,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(ringColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = statusTitle,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = statusDesc,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }

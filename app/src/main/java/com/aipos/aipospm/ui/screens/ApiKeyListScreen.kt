@@ -8,9 +8,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -92,7 +94,9 @@ fun ApiKeyListScreen(
     onNavigateToAdd: () -> Unit,
     onNavigateToDetail: (Int) -> Unit
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("API Keys", fontWeight = FontWeight.Bold) },
@@ -124,6 +128,7 @@ fun ApiKeyListScreen(
             apiKeyViewModel = apiKeyViewModel,
             categoryViewModel = categoryViewModel,
             onNavigateToDetail = onNavigateToDetail,
+            snackbarHostState = snackbarHostState,
             modifier = Modifier.padding(padding)
         )
     }
@@ -139,13 +144,13 @@ fun ApiKeyListContent(
     apiKeyViewModel: ApiKeyViewModel,
     categoryViewModel: CategoryViewModel,
     onNavigateToDetail: (Int) -> Unit,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     modifier: Modifier = Modifier
 ) {
     val apiKeys by apiKeyViewModel.apiKeys.collectAsStateWithLifecycle()
     val categories by categoryViewModel.categories.collectAsStateWithLifecycle()
     val selectedCategoryIdFilter by apiKeyViewModel.selectedCategoryIdFilter.collectAsStateWithLifecycle()
     val searchQuery by apiKeyViewModel.searchQuery.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -275,13 +280,15 @@ fun ApiKeyListContent(
                     )
                 }
             } else {
+                val categoryMap = remember(categories) { categories.associateBy { it.id } }
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(
                         items = apiKeys,
-                        key = { it.id }
+                        key = { it.id },
+                        contentType = { "apikey_item" }
                     ) { entry ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             positionalThreshold = { distance -> distance * 0.5f },
@@ -335,7 +342,7 @@ fun ApiKeyListContent(
                         ) {
                             ApiKeyCard(
                                 entry = entry,
-                                categoryName = categories.firstOrNull { it.id == entry.categoryId }?.name,
+                                categoryName = categoryMap[entry.categoryId]?.name,
                                 onClick = { onNavigateToDetail(entry.id) },
                                 onFavoriteClick = { apiKeyViewModel.toggleFavorite(entry) },
                                 onCopyName = {
@@ -350,12 +357,6 @@ fun ApiKeyListContent(
                 }
             }
         }
-
-        // Snackbar host overlay for inline usage
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }
 
@@ -390,96 +391,100 @@ private fun ApiKeyCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 0.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
+                .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left accent bar (secondary/indigo color)
             Box(
                 modifier = Modifier
                     .width(4.dp)
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(topEnd = 2.dp, bottomEnd = 2.dp))
+                    .fillMaxHeight()
                     .background(MaterialTheme.colorScheme.secondary)
             )
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Card(
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp, top = 14.dp, end = 12.dp, bottom = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier.size(44.dp),
-                    contentAlignment = Alignment.Center
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.VpnKey,
-                        contentDescription = null,
-                        modifier = Modifier.size(22.dp),
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = entry.serviceName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (entry.notes.isNotEmpty()) {
-                    Text(
-                        text = entry.notes,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (categoryName != null) {
-                    val (containerColor, contentColor) = getApiKeyCategoryColors(categoryName)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Card(
-                        shape = RoundedCornerShape(6.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = containerColor
-                        )
+                    Box(
+                        modifier = Modifier.size(44.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = categoryName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = contentColor,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            fontWeight = FontWeight.Medium
+                        Icon(
+                            imageVector = Icons.Default.VpnKey,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                 }
-            }
 
-            IconButton(onClick = onCopyName, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    imageVector = Icons.Default.ContentCopy,
-                    contentDescription = "Copy",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.outline
-                )
-            }
+                Spacer(modifier = Modifier.width(12.dp))
 
-            IconButton(onClick = onFavoriteClick, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    imageVector = if (entry.isFavorite) Icons.Default.Star
-                    else Icons.Default.StarBorder,
-                    contentDescription = "Favorite",
-                    modifier = Modifier.size(18.dp),
-                    tint = if (entry.isFavorite) MaterialTheme.colorScheme.secondary
-                    else MaterialTheme.colorScheme.outline
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = entry.serviceName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (entry.notes.isNotEmpty()) {
+                        Text(
+                            text = entry.notes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (categoryName != null) {
+                        val (containerColor, contentColor) = getApiKeyCategoryColors(categoryName)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Card(
+                            shape = RoundedCornerShape(6.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = containerColor
+                            )
+                        ) {
+                            Text(
+                                text = categoryName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = contentColor,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                IconButton(onClick = onCopyName, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "Copy",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                }
+
+                IconButton(onClick = onFavoriteClick, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        imageVector = if (entry.isFavorite) Icons.Default.Star
+                        else Icons.Default.StarBorder,
+                        contentDescription = "Favorite",
+                        modifier = Modifier.size(18.dp),
+                        tint = if (entry.isFavorite) MaterialTheme.colorScheme.secondary
+                        else MaterialTheme.colorScheme.outline
+                    )
+                }
             }
         }
     }
