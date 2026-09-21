@@ -1,5 +1,6 @@
 package com.aipos.aipospm.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -18,5 +19,8 @@ data class PasswordEntry(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     val encryptedTotpSecret: String? = null,
-    val totpIv: String? = null
+    val totpIv: String? = null,
+    @ColumnInfo(defaultValue = "0")
+    val isDeleted: Boolean = false,
+    val deletedAt: Long? = null
 )

@@ -1,5 +1,6 @@
 package com.aipos.aipospm.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -14,5 +15,8 @@ data class ApiKeyEntry(
     val categoryId: Int? = null,
     val isFavorite: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "0")
+    val isDeleted: Boolean = false,
+    val deletedAt: Long? = null
 )

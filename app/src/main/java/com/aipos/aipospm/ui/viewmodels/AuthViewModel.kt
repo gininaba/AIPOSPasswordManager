@@ -19,7 +19,8 @@ data class AuthUiState(
     val error: String? = null,
     val passwordStrength: PasswordStrength = PasswordStrength.NONE,
     val autoLockTimeout: Int = -1,
-    val isPasswordBreached: Boolean = false
+    val isPasswordBreached: Boolean = false,
+    val isScreenSecurityEnabled: Boolean = true
 )
 
 enum class PasswordStrength {
@@ -34,7 +35,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         AuthUiState(
             isMasterPasswordSet = masterPasswordManager.isMasterPasswordSet(),
             isBiometricEnabled = masterPasswordManager.isBiometricEnabled(),
-            autoLockTimeout = masterPasswordManager.getAutoLockTimeout()
+            autoLockTimeout = masterPasswordManager.getAutoLockTimeout(),
+            isScreenSecurityEnabled = masterPasswordManager.isScreenSecurityEnabled()
         )
     )
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -132,6 +134,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun setAutoLockTimeout(timeoutMinutes: Int) {
         masterPasswordManager.setAutoLockTimeout(timeoutMinutes)
         _uiState.value = _uiState.value.copy(autoLockTimeout = timeoutMinutes)
+    }
+
+    fun setScreenSecurity(enabled: Boolean) {
+        masterPasswordManager.setScreenSecurityEnabled(enabled)
+        _uiState.value = _uiState.value.copy(isScreenSecurityEnabled = enabled)
     }
 
     fun clearError() {

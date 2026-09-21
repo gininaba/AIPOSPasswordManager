@@ -290,6 +290,7 @@ fun ApiKeyListContent(
                         key = { it.id },
                         contentType = { "apikey_item" }
                     ) { entry ->
+                        @Suppress("DEPRECATION")
                         val dismissState = rememberSwipeToDismissBoxState(
                             positionalThreshold = { distance -> distance * 0.5f },
                             confirmValueChange = { dismissValue ->

@@ -68,6 +68,11 @@ data class ApiKeyBackup(
     val updatedAt: Long?
 )
 
+data class VaultAudit(
+    val compromisedIds: Set<Int> = emptySet(),
+    val reusedIds: Set<Int> = emptySet()
+)
+
 data class PasswordUiState(
     val selectedPassword: PasswordEntry? = null,
     val decryptedPassword: String = "",
@@ -86,6 +91,9 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     init {
         viewModelScope.launch(Dispatchers.IO) {
             PasswordBreachChecker.init(application)
+            // Auto-purge items in trash older than 30 days
+            val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
+            passwordDao.purgeOldDeletedPasswords(thirtyDaysAgo)
         }
     }
 
@@ -98,30 +106,76 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     private val _showCompromisedOnlyFilter = MutableStateFlow(false)
     val showCompromisedOnlyFilter: StateFlow<Boolean> = _showCompromisedOnlyFilter.asStateFlow()
 
+    private val _showReusedOnlyFilter = MutableStateFlow(false)
+    val showReusedOnlyFilter: StateFlow<Boolean> = _showReusedOnlyFilter.asStateFlow()
+
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    val vaultAudit: StateFlow<VaultAudit> = passwordDao.getAllPasswords()
+        .debounce(300L)
+        .map { list ->
+            val compIds = mutableSetOf<Int>()
+            val plainMap = mutableMapOf<String, MutableList<Int>>()
+
+            for (entry in list) {
+                val plain = decryptPassword(entry)
+                if (isPasswordBreached(plain)) {
+                    compIds.add(entry.id)
+                }
+                if (plain.isNotBlank() && plain != "*** Decryption failed ***") {
+                    plainMap.getOrPut(plain) { mutableListOf() }.add(entry.id)
+                }
+            }
+
+            val rIds = plainMap.filter { it.value.size > 1 }.values.flatten().toSet()
+            VaultAudit(compromisedIds = compIds, reusedIds = rIds)
+        }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), VaultAudit())
+
+    val breachedPasswordCount: StateFlow<Int> = vaultAudit
+        .map { it.compromisedIds.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val reusedPasswordCount: StateFlow<Int> = vaultAudit
+        .map { it.reusedIds.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val reusedPasswordIds: StateFlow<Set<Int>> = vaultAudit
+        .map { it.reusedIds }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
+    val compromisedPasswordIds: StateFlow<Set<Int>> = vaultAudit
+        .map { it.compromisedIds }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val passwords: StateFlow<List<PasswordEntry>> = combine(
         _searchQuery,
         _selectedCategoryIdFilter,
-        _showCompromisedOnlyFilter
-    ) { query, categoryId, compromisedOnly ->
-        Triple(query, categoryId, compromisedOnly)
-    }.flatMapLatest { (query, _, _) ->
-        if (query.isBlank()) {
+        _showCompromisedOnlyFilter,
+        _showReusedOnlyFilter,
+        vaultAudit
+    ) { query, categoryId, compromisedOnly, reusedOnly, audit ->
+        Triple(query, categoryId, Pair(compromisedOnly to audit.compromisedIds, reusedOnly to audit.reusedIds))
+    }.flatMapLatest { (query, categoryId, filterState) ->
+        val baseFlow = if (query.isBlank()) {
             passwordDao.getAllPasswords()
         } else {
             passwordDao.searchPasswords(query)
         }
-    }.combine(_selectedCategoryIdFilter) { list, categoryId ->
-        if (categoryId == null) {
-            list
-        } else {
-            list.filter { it.categoryId == categoryId }
-        }
-    }.combine(_showCompromisedOnlyFilter) { list, compromisedOnly ->
-        if (!compromisedOnly) {
-            list
-        } else {
-            list.filter { isPasswordBreached(decryptPassword(it)) }
+        baseFlow.map { list ->
+            var filtered = list
+            if (categoryId != null) {
+                filtered = filtered.filter { it.categoryId == categoryId }
+            }
+            val (compFilter, reusedFilter) = filterState
+            if (compFilter.first) {
+                filtered = filtered.filter { it.id in compFilter.second }
+            }
+            if (reusedFilter.first) {
+                filtered = filtered.filter { it.id in reusedFilter.second }
+            }
+            filtered
         }
     }.flowOn(Dispatchers.Default)
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -133,12 +187,22 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     fun selectCategoryFilter(categoryId: Int?) {
         _selectedCategoryIdFilter.value = categoryId
         _showCompromisedOnlyFilter.value = false
+        _showReusedOnlyFilter.value = false
     }
 
     fun setShowCompromisedOnlyFilter(showOnly: Boolean) {
         _showCompromisedOnlyFilter.value = showOnly
         if (showOnly) {
             _selectedCategoryIdFilter.value = null
+            _showReusedOnlyFilter.value = false
+        }
+    }
+
+    fun setShowReusedOnlyFilter(showOnly: Boolean) {
+        _showReusedOnlyFilter.value = showOnly
+        if (showOnly) {
+            _selectedCategoryIdFilter.value = null
+            _showCompromisedOnlyFilter.value = false
         }
     }
 
@@ -148,14 +212,10 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     val favoritePasswords: StateFlow<List<PasswordEntry>> = passwordDao.getFavoritePasswords()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    @OptIn(kotlinx.coroutines.FlowPreview::class)
-    val breachedPasswordCount: StateFlow<Int> = passwords
-        // Absorb rapid bursts (e.g. Room emitting once per row during a CSV import of 200+ entries)
-        // so we don't pay 200 Keystore decrypt calls per emission during an import.
-        .debounce(300L)
-        // Move the expensive Keystore decryption + set-lookup off the main thread.
-        .map { list -> list.count { isPasswordBreached(decryptPassword(it)) } }
-        .flowOn(Dispatchers.Default)
+    val deletedPasswords: StateFlow<List<PasswordEntry>> = passwordDao.getDeletedPasswords()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val deletedPasswordCount: StateFlow<Int> = passwordDao.getDeletedPasswordCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     private val _uiState = MutableStateFlow(PasswordUiState())
@@ -527,6 +587,7 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
 
     fun loadPassword(id: Int) {
         loadJob?.cancel()
+        _uiState.value = _uiState.value.copy(isLoading = true)
         loadJob = viewModelScope.launch {
             passwordDao.getPasswordById(id).collect { entry ->
                 if (entry != null) {
@@ -543,7 +604,15 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     _uiState.value = _uiState.value.copy(
                         selectedPassword = entry,
                         decryptedPassword = decrypted,
-                        decryptedTotpSecret = decryptedTotp
+                        decryptedTotpSecret = decryptedTotp,
+                        isLoading = false
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        selectedPassword = null,
+                        decryptedPassword = "",
+                        decryptedTotpSecret = "",
+                        isLoading = false
                     )
                 }
             }
@@ -551,9 +620,13 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun restorePassword(entry: PasswordEntry) {
+        restorePasswordById(entry.id)
+    }
+
+    fun restorePasswordById(id: Int) {
         viewModelScope.launch {
             try {
-                passwordDao.insertPassword(entry)
+                passwordDao.restorePasswordById(id)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = "Failed to restore: ${e.message}")
             }
@@ -569,21 +642,35 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun deletePassword(entry: PasswordEntry) {
+        deletePasswordById(entry.id)
+    }
+
+    fun deletePasswordById(id: Int) {
         viewModelScope.launch {
             try {
-                passwordDao.deletePassword(entry)
+                passwordDao.softDeletePassword(id)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = "Failed to delete: ${e.message}")
             }
         }
     }
 
-    fun deletePasswordById(id: Int) {
+    fun permanentlyDeletePassword(id: Int) {
         viewModelScope.launch {
             try {
-                passwordDao.deletePasswordById(id)
+                passwordDao.permanentlyDeletePassword(id)
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = "Failed to delete: ${e.message}")
+                _uiState.value = _uiState.value.copy(error = "Failed to permanently delete: ${e.message}")
+            }
+        }
+    }
+
+    fun emptyTrash() {
+        viewModelScope.launch {
+            try {
+                passwordDao.emptyPasswordTrash()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = "Failed to empty trash: ${e.message}")
             }
         }
     }
@@ -599,6 +686,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun clearSelection() {
+        loadJob?.cancel()
+        loadJob = null
         _uiState.value = PasswordUiState()
     }
 

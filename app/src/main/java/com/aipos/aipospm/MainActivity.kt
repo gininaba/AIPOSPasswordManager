@@ -1,10 +1,14 @@
 package com.aipos.aipospm
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
 import com.aipos.aipospm.navigation.NavGraph
 import com.aipos.aipospm.navigation.Screen
@@ -48,6 +52,14 @@ class MainActivity : FragmentActivity() {
         val masterPasswordManager = MasterPasswordManager(this)
         val canUseBiometric = biometricHelper.canAuthenticate(this)
 
+        // Set initial window FLAG_SECURE state based on persisted preference
+        if (masterPasswordManager.isScreenSecurityEnabled()) {
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE
+            )
+        }
+
         // Determine start destination
         val startDestination = when {
             !masterPasswordManager.isMasterPasswordSet() -> Screen.Setup.route
@@ -57,6 +69,19 @@ class MainActivity : FragmentActivity() {
         setContent {
             AIPOSPasswordManagerTheme {
                 val navController = rememberNavController()
+                val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+
+                DisposableEffect(authState.isScreenSecurityEnabled) {
+                    if (authState.isScreenSecurityEnabled) {
+                        window.setFlags(
+                            WindowManager.LayoutParams.FLAG_SECURE,
+                            WindowManager.LayoutParams.FLAG_SECURE
+                        )
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                    }
+                    onDispose { }
+                }
 
                 NavGraph(
                     navController = navController,

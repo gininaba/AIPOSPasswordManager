@@ -11,20 +11,42 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ApiKeyDao {
 
-    @Query("SELECT * FROM api_keys ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM api_keys WHERE isDeleted = 0 ORDER BY updatedAt DESC")
     fun getAllApiKeys(): Flow<List<ApiKeyEntry>>
 
-    @Query("SELECT * FROM api_keys WHERE serviceName LIKE '%' || :query || '%' ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM api_keys WHERE isDeleted = 0 AND serviceName LIKE '%' || :query || '%' ORDER BY updatedAt DESC")
     fun searchApiKeys(query: String): Flow<List<ApiKeyEntry>>
 
     @Query("SELECT * FROM api_keys WHERE id = :id")
     fun getApiKeyById(id: Int): Flow<ApiKeyEntry?>
 
-    @Query("SELECT * FROM api_keys WHERE isFavorite = 1 ORDER BY updatedAt DESC")
+    @Query("SELECT * FROM api_keys WHERE isFavorite = 1 AND isDeleted = 0 ORDER BY updatedAt DESC")
     fun getFavoriteApiKeys(): Flow<List<ApiKeyEntry>>
 
-    @Query("SELECT COUNT(*) FROM api_keys")
+    @Query("SELECT COUNT(*) FROM api_keys WHERE isDeleted = 0")
     fun getApiKeyCount(): Flow<Int>
+
+    // Trash / Soft delete operations
+    @Query("SELECT * FROM api_keys WHERE isDeleted = 1 ORDER BY deletedAt DESC")
+    fun getDeletedApiKeys(): Flow<List<ApiKeyEntry>>
+
+    @Query("SELECT COUNT(*) FROM api_keys WHERE isDeleted = 1")
+    fun getDeletedApiKeyCount(): Flow<Int>
+
+    @Query("UPDATE api_keys SET isDeleted = 1, deletedAt = :deletedAt WHERE id = :id")
+    suspend fun softDeleteApiKey(id: Int, deletedAt: Long = System.currentTimeMillis())
+
+    @Query("UPDATE api_keys SET isDeleted = 0, deletedAt = null WHERE id = :id")
+    suspend fun restoreApiKeyById(id: Int)
+
+    @Query("DELETE FROM api_keys WHERE id = :id AND isDeleted = 1")
+    suspend fun permanentlyDeleteApiKey(id: Int)
+
+    @Query("DELETE FROM api_keys WHERE isDeleted = 1")
+    suspend fun emptyApiKeyTrash()
+
+    @Query("DELETE FROM api_keys WHERE isDeleted = 1 AND deletedAt < :cutoffTimestamp")
+    suspend fun purgeOldDeletedApiKeys(cutoffTimestamp: Long)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertApiKey(entry: ApiKeyEntry)

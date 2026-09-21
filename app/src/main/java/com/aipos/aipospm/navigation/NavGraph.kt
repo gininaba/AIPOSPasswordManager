@@ -257,11 +257,15 @@ fun NavGraph(
             SettingsScreen(
                 authViewModel = authViewModel,
                 passwordViewModel = passwordViewModel,
+                apiKeyViewModel = apiKeyViewModel,
                 categoryViewModel = categoryViewModel,
                 canUseBiometric = canUseBiometric,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToManageCategories = {
                     navController.navigate(Screen.CategoryManager.route)
+                },
+                onNavigateToTrash = {
+                    navController.navigate(Screen.Trash.route)
                 }
             )
         }
@@ -270,6 +274,15 @@ fun NavGraph(
         composable(Screen.CategoryManager.route) {
             CategoryManagerScreen(
                 categoryViewModel = categoryViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // Trash
+        composable(Screen.Trash.route) {
+            com.aipos.aipospm.ui.screens.TrashScreen(
+                passwordViewModel = passwordViewModel,
+                apiKeyViewModel = apiKeyViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

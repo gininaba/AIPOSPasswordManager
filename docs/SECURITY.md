@@ -70,3 +70,14 @@ sequenceDiagram
 
 ### 4.3 Threat: Weak Master Passwords & Breached Credentials
 - **Mitigation**: Real-time offline evaluation against a local breached password dataset (`PasswordBreachChecker`). Prompts users when master passwords or entry credentials match known compromised lists.
+
+### 4.4 Threat: Screen Scraping, Surveillance & Screenshot Malware
+- **Mitigation**: The app leverages Android's `WindowManager.LayoutParams.FLAG_SECURE` to block screenshots, screen recording tools, and prevent the app window from being rendered in plain text inside the OS Recent Apps overview / task switcher.
+- **Granular User Control**: Users can adjust this setting under *Settings > Security > Screen Privacy*, with the default strictly set to enabled for maximum privacy.
+
+### 4.5 Threat: Malicious App Phishing & Unauthorized Autofill Interception
+- **Mitigation**: The `AiposAutofillService` NEVER returns plaintext decrypted credentials in initial `FillResponse` datasets.
+- **Authenticated Datasets**: Every autofill suggestion attaches an `IntentSender` targeting `AutofillAuthActivity`. The Android OS only receives decrypted credentials after the user explicitly authorizes the fill action via `BIOMETRIC_STRONG` (fingerprint/face) or the Master Password.
+- **Domain & Package Validation**: Credentials are only suggested when the calling app's package name or the browser's web domain positively matches verified vault entries.
+
+

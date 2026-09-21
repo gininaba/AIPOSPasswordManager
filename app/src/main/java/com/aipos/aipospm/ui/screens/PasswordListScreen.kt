@@ -38,10 +38,12 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import com.aipos.aipospm.ui.theme.WarningAmber
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -160,7 +162,11 @@ fun PasswordListContent(
     val categories by categoryViewModel.categories.collectAsStateWithLifecycle()
     val selectedCategoryIdFilter by passwordViewModel.selectedCategoryIdFilter.collectAsStateWithLifecycle()
     val showCompromisedOnlyFilter by passwordViewModel.showCompromisedOnlyFilter.collectAsStateWithLifecycle()
+    val showReusedOnlyFilter by passwordViewModel.showReusedOnlyFilter.collectAsStateWithLifecycle()
     val breachedPasswordCount by passwordViewModel.breachedPasswordCount.collectAsStateWithLifecycle()
+    val reusedPasswordCount by passwordViewModel.reusedPasswordCount.collectAsStateWithLifecycle()
+    val reusedPasswordIds by passwordViewModel.reusedPasswordIds.collectAsStateWithLifecycle()
+    val compromisedPasswordIds by passwordViewModel.compromisedPasswordIds.collectAsStateWithLifecycle()
     val searchQuery by passwordViewModel.searchQuery.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -191,7 +197,7 @@ fun PasswordListContent(
                     singleLine = true,
                     decorationBox = { innerTextField ->
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(
@@ -265,11 +271,42 @@ fun PasswordListContent(
                         )
                     }
                 }
+                if (reusedPasswordCount > 0 || showReusedOnlyFilter) {
+                    item {
+                        FilterChip(
+                            selected = showReusedOnlyFilter,
+                            onClick = {
+                                passwordViewModel.setShowReusedOnlyFilter(!showReusedOnlyFilter)
+                            },
+                            label = { Text("Reused ($reusedPasswordCount)") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Repeat,
+                                    contentDescription = null,
+                                    tint = WarningAmber,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = WarningAmber.copy(alpha = 0.15f),
+                                selectedLabelColor = WarningAmber,
+                                selectedLeadingIconColor = WarningAmber,
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = showReusedOnlyFilter,
+                                selectedBorderColor = WarningAmber.copy(alpha = 0.5f)
+                            )
+                        )
+                    }
+                }
                 item {
                     FilterChip(
-                        selected = selectedCategoryIdFilter == null && !showCompromisedOnlyFilter,
+                        selected = selectedCategoryIdFilter == null && !showCompromisedOnlyFilter && !showReusedOnlyFilter,
                         onClick = {
                             passwordViewModel.setShowCompromisedOnlyFilter(false)
+                            passwordViewModel.setShowReusedOnlyFilter(false)
                             passwordViewModel.selectCategoryFilter(null)
                         },
                         label = { Text("All") }
@@ -277,9 +314,10 @@ fun PasswordListContent(
                 }
                 items(categories, key = { it.id }) { category ->
                     FilterChip(
-                        selected = selectedCategoryIdFilter == category.id && !showCompromisedOnlyFilter,
+                        selected = selectedCategoryIdFilter == category.id && !showCompromisedOnlyFilter && !showReusedOnlyFilter,
                         onClick = {
                             passwordViewModel.setShowCompromisedOnlyFilter(false)
+                            passwordViewModel.setShowReusedOnlyFilter(false)
                             passwordViewModel.selectCategoryFilter(category.id)
                         },
                         label = { Text(category.name) }
@@ -301,22 +339,34 @@ fun PasswordListContent(
                             .size(72.dp)
                             .clip(CircleShape)
                             .background(
-                                if (showCompromisedOnlyFilter) DangerRed.copy(alpha = 0.1f)
-                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                when {
+                                    showCompromisedOnlyFilter -> DangerRed.copy(alpha = 0.1f)
+                                    showReusedOnlyFilter -> WarningAmber.copy(alpha = 0.1f)
+                                    else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                                }
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = if (showCompromisedOnlyFilter) Icons.Default.Shield else Icons.Default.Password,
+                            imageVector = when {
+                                showCompromisedOnlyFilter -> Icons.Default.Shield
+                                showReusedOnlyFilter -> Icons.Default.Repeat
+                                else -> Icons.Default.Password
+                            },
                             contentDescription = null,
                             modifier = Modifier.size(36.dp),
-                            tint = if (showCompromisedOnlyFilter) DangerRed else MaterialTheme.colorScheme.primary
+                            tint = when {
+                                showCompromisedOnlyFilter -> DangerRed
+                                showReusedOnlyFilter -> WarningAmber
+                                else -> MaterialTheme.colorScheme.primary
+                            }
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = when {
                             showCompromisedOnlyFilter -> "No compromised passwords!"
+                            showReusedOnlyFilter -> "No reused passwords!"
                             searchQuery.isNotEmpty() || selectedCategoryIdFilter != null -> "No results found"
                             else -> "No passwords saved yet"
                         },
@@ -327,6 +377,7 @@ fun PasswordListContent(
                     Text(
                         text = when {
                             showCompromisedOnlyFilter -> "All your saved passwords are clean and secure."
+                            showReusedOnlyFilter -> "All your saved passwords are unique across your accounts."
                             searchQuery.isNotEmpty() || selectedCategoryIdFilter != null -> "Try a different search or filter"
                             else -> "Tap the + button to add your first password"
                         },
@@ -335,10 +386,13 @@ fun PasswordListContent(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(top = 4.dp)
                     )
-                    if (showCompromisedOnlyFilter) {
+                    if (showCompromisedOnlyFilter || showReusedOnlyFilter) {
                         Spacer(modifier = Modifier.height(16.dp))
                         androidx.compose.material3.TextButton(
-                            onClick = { passwordViewModel.setShowCompromisedOnlyFilter(false) }
+                            onClick = {
+                                passwordViewModel.setShowCompromisedOnlyFilter(false)
+                                passwordViewModel.setShowReusedOnlyFilter(false)
+                            }
                         ) {
                             Text("Show All Passwords")
                         }
@@ -355,6 +409,7 @@ fun PasswordListContent(
                         key = { it.id },
                         contentType = { "password_item" }
                     ) { entry ->
+                        @Suppress("DEPRECATION")
                         val dismissState = rememberSwipeToDismissBoxState(
                             positionalThreshold = { distance -> distance * 0.5f },
                             confirmValueChange = { dismissValue ->
@@ -406,13 +461,13 @@ fun PasswordListContent(
                             enableDismissFromStartToEnd = false,
                             enableDismissFromEndToStart = true
                         ) {
-                            val isBreached = remember(entry) {
-                                passwordViewModel.isPasswordBreached(passwordViewModel.decryptPassword(entry))
-                            }
+                            val isBreached = entry.id in compromisedPasswordIds
+                            val isReused = entry.id in reusedPasswordIds
                             PasswordCard(
                                 entry = entry,
                                 categoryName = categoryMap[entry.categoryId]?.name,
                                 isBreached = isBreached,
+                                isReused = isReused,
                                 onClick = { onNavigateToDetail(entry.id) },
                                 onFavoriteClick = { passwordViewModel.toggleFavorite(entry) },
                                 onCopyUsername = {
@@ -445,12 +500,21 @@ private fun PasswordCard(
     entry: PasswordEntry,
     categoryName: String?,
     isBreached: Boolean,
+    isReused: Boolean = false,
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onCopyUsername: () -> Unit
 ) {
-    val barColor = if (isBreached) DangerRed else MaterialTheme.colorScheme.primary
-    val borderStroke = if (isBreached) BorderStroke(1.dp, DangerRed.copy(alpha = 0.5f)) else null
+    val barColor = when {
+        isBreached -> DangerRed
+        isReused -> WarningAmber
+        else -> MaterialTheme.colorScheme.primary
+    }
+    val borderStroke = when {
+        isBreached -> BorderStroke(1.dp, DangerRed.copy(alpha = 0.5f))
+        isReused -> BorderStroke(1.dp, WarningAmber.copy(alpha = 0.5f))
+        else -> null
+    }
 
     Card(
         modifier = Modifier
@@ -487,28 +551,42 @@ private fun PasswordCard(
                 Card(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isBreached) DangerRed.copy(alpha = 0.12f)
-                        else MaterialTheme.colorScheme.primaryContainer
+                        containerColor = when {
+                            isBreached -> DangerRed.copy(alpha = 0.12f)
+                            isReused -> WarningAmber.copy(alpha = 0.15f)
+                            else -> MaterialTheme.colorScheme.primaryContainer
+                        }
                     )
                 ) {
                     Box(
                         modifier = Modifier.size(44.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (isBreached) {
-                            Icon(
-                                imageVector = Icons.Default.Shield,
-                                contentDescription = "Breached",
-                                tint = DangerRed,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        } else {
-                            Text(
-                                text = entry.title.take(1).uppercase(),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                        when {
+                            isBreached -> {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = "Breached",
+                                    tint = DangerRed,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            isReused -> {
+                                Icon(
+                                    imageVector = Icons.Default.Repeat,
+                                    contentDescription = "Reused",
+                                    tint = WarningAmber,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            else -> {
+                                Text(
+                                    text = entry.title.take(1).uppercase(),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
                         }
                     }
                 }
@@ -567,6 +645,32 @@ private fun PasswordCard(
                                         text = "Compromised",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = DangerRed,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        } else if (isReused) {
+                            Card(
+                                shape = RoundedCornerShape(6.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = WarningAmber.copy(alpha = 0.15f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Repeat,
+                                        contentDescription = null,
+                                        tint = WarningAmber,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Reused",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = WarningAmber,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }

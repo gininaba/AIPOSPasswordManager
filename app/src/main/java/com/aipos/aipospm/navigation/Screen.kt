@@ -28,4 +28,5 @@ sealed class Screen(val route: String) {
     data object PasswordGenerator : Screen("password_generator")
     data object Settings : Screen("settings")
     data object CategoryManager : Screen("category_manager")
+    data object Trash : Screen("trash")
 }

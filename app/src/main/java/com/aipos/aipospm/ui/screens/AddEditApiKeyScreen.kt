@@ -82,12 +82,6 @@ fun AddEditApiKeyScreen(
     var showCreateCategoryDialog by remember { mutableStateOf(false) }
     var newCatName by remember { mutableStateOf("") }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            apiKeyViewModel.clearSelection()
-        }
-    }
-
     LaunchedEffect(apiKeyId) {
         if (apiKeyId != null && apiKeyId > 0) {
             isEditing = true
@@ -110,7 +104,6 @@ fun AddEditApiKeyScreen(
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
             apiKeyViewModel.resetSaveSuccess()
-            apiKeyViewModel.clearSelection()
             onNavigateBack()
         }
     }
@@ -168,10 +161,7 @@ fun AddEditApiKeyScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        apiKeyViewModel.clearSelection()
-                        onNavigateBack()
-                    }) {
+                    IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },

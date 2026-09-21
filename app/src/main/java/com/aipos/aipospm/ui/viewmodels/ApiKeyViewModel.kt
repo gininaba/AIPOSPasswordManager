@@ -66,6 +66,19 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     val favoriteApiKeys: StateFlow<List<ApiKeyEntry>> = apiKeyDao.getFavoriteApiKeys()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val deletedApiKeys: StateFlow<List<ApiKeyEntry>> = apiKeyDao.getDeletedApiKeys()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val deletedApiKeyCount: StateFlow<Int> = apiKeyDao.getDeletedApiKeyCount()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
+            apiKeyDao.purgeOldDeletedApiKeys(thirtyDaysAgo)
+        }
+    }
+
     private val _uiState = MutableStateFlow(ApiKeyUiState())
     val uiState: StateFlow<ApiKeyUiState> = _uiState.asStateFlow()
 
@@ -126,6 +139,7 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
 
     fun loadApiKey(id: Int) {
         loadJob?.cancel()
+        _uiState.value = _uiState.value.copy(isLoading = true)
         loadJob = viewModelScope.launch {
             apiKeyDao.getApiKeyById(id).collect { entry ->
                 if (entry != null) {
@@ -136,7 +150,14 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
                     }
                     _uiState.value = _uiState.value.copy(
                         selectedApiKey = entry,
-                        decryptedApiKey = decrypted
+                        decryptedApiKey = decrypted,
+                        isLoading = false
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        selectedApiKey = null,
+                        decryptedApiKey = "",
+                        isLoading = false
                     )
                 }
             }
@@ -144,9 +165,13 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun restoreApiKey(entry: ApiKeyEntry) {
+        restoreApiKeyById(entry.id)
+    }
+
+    fun restoreApiKeyById(id: Int) {
         viewModelScope.launch {
             try {
-                apiKeyDao.insertApiKey(entry)
+                apiKeyDao.restoreApiKeyById(id)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = "Failed to restore: ${e.message}")
             }
@@ -162,21 +187,35 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun deleteApiKey(entry: ApiKeyEntry) {
+        deleteApiKeyById(entry.id)
+    }
+
+    fun deleteApiKeyById(id: Int) {
         viewModelScope.launch {
             try {
-                apiKeyDao.deleteApiKey(entry)
+                apiKeyDao.softDeleteApiKey(id)
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(error = "Failed to delete: ${e.message}")
             }
         }
     }
 
-    fun deleteApiKeyById(id: Int) {
+    fun permanentlyDeleteApiKey(id: Int) {
         viewModelScope.launch {
             try {
-                apiKeyDao.deleteApiKeyById(id)
+                apiKeyDao.permanentlyDeleteApiKey(id)
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = "Failed to delete: ${e.message}")
+                _uiState.value = _uiState.value.copy(error = "Failed to permanently delete: ${e.message}")
+            }
+        }
+    }
+
+    fun emptyTrash() {
+        viewModelScope.launch {
+            try {
+                apiKeyDao.emptyApiKeyTrash()
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(error = "Failed to empty trash: ${e.message}")
             }
         }
     }
@@ -192,6 +231,8 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun clearSelection() {
+        loadJob?.cancel()
+        loadJob = null
         _uiState.value = ApiKeyUiState()
     }
 

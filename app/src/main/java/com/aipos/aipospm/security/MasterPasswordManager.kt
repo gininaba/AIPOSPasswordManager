@@ -21,6 +21,7 @@ class MasterPasswordManager(context: Context) {
         private const val KEY_SALT = "master_salt"
         private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
         private const val KEY_AUTO_LOCK_TIMEOUT = "auto_lock_timeout"
+        private const val KEY_SCREEN_SECURITY_ENABLED = "screen_security_enabled"
         private const val KEY_RECOVERY_KEY_HASH = "recovery_key_hash"
         private const val KEY_RECOVERY_SALT = "recovery_salt"
         private const val KEY_RECOVERY_KEY_ENCRYPTED = "recovery_key_encrypted"
@@ -115,6 +116,21 @@ class MasterPasswordManager(context: Context) {
      */
     fun setAutoLockTimeout(timeoutMinutes: Int) {
         prefs.edit().putInt(KEY_AUTO_LOCK_TIMEOUT, timeoutMinutes).apply()
+    }
+
+    /**
+     * Check if screen security (FLAG_SECURE) is enabled.
+     * Defaults to true to protect against screenshots and recent apps switcher leaks.
+     */
+    fun isScreenSecurityEnabled(): Boolean {
+        return prefs.getBoolean(KEY_SCREEN_SECURITY_ENABLED, true)
+    }
+
+    /**
+     * Enable or disable screen security (FLAG_SECURE).
+     */
+    fun setScreenSecurityEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SCREEN_SECURITY_ENABLED, enabled).apply()
     }
 
     private fun generateSalt(): ByteArray {

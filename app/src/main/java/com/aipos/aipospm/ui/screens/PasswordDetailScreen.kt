@@ -25,7 +25,9 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -98,12 +101,11 @@ fun PasswordDetailScreen(
     // TOTP live state
     val decryptedTotpSecret = uiState.decryptedTotpSecret
     var totpCode by remember { mutableStateOf("") }
-    var totpSecondsRemaining by remember { mutableStateOf(30) }
+    var totpSecondsRemaining by remember { mutableIntStateOf(30) }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            passwordViewModel.clearSelection()
-        }
+    BackHandler {
+        passwordViewModel.clearSelection()
+        onNavigateBack()
     }
 
     // Tick every second when we have a TOTP secret
@@ -135,8 +137,10 @@ fun PasswordDetailScreen(
         }
     }
 
-    LaunchedEffect(passwordId) {
-        passwordViewModel.loadPassword(passwordId)
+    LaunchedEffect(passwordId, uiState.selectedPassword?.id) {
+        if (uiState.selectedPassword == null || uiState.selectedPassword?.id != passwordId) {
+            passwordViewModel.loadPassword(passwordId)
+        }
     }
 
     val entry = uiState.selectedPassword
@@ -208,7 +212,20 @@ fun PasswordDetailScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("Loading...", style = MaterialTheme.typography.bodyLarge)
+                if (uiState.isLoading) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Loading password...", style = MaterialTheme.typography.bodyLarge)
+                } else {
+                    Text("Password not found", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(onClick = {
+                        passwordViewModel.clearSelection()
+                        onNavigateBack()
+                    }) {
+                        Text("Go Back")
+                    }
+                }
             }
         } else {
             Column(

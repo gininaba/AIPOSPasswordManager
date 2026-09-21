@@ -3,6 +3,7 @@ package com.aipos.aipospm.ui.screens
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -66,7 +68,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.aipos.aipospm.ui.components.bounceClick
 import com.aipos.aipospm.ui.components.pressScale
+import android.os.Build
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.aipos.aipospm.security.ClipboardHelper
+import com.aipos.aipospm.ui.theme.DangerRed
+import com.aipos.aipospm.ui.theme.SecurityGreen
+import com.aipos.aipospm.ui.theme.WarningAmber
+import com.aipos.aipospm.ui.viewmodels.ApiKeyViewModel
 import com.aipos.aipospm.ui.viewmodels.AuthViewModel
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
@@ -77,15 +88,45 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     authViewModel: AuthViewModel,
     passwordViewModel: PasswordViewModel,
+    apiKeyViewModel: ApiKeyViewModel? = null,
     categoryViewModel: CategoryViewModel,
     canUseBiometric: Boolean,
     onNavigateBack: () -> Unit,
-    onNavigateToManageCategories: () -> Unit
+    onNavigateToManageCategories: () -> Unit,
+    onNavigateToTrash: () -> Unit = {}
 ) {
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+    val deletedPasswordCount by passwordViewModel.deletedPasswordCount.collectAsStateWithLifecycle()
+    val deletedApiKeyCount by (apiKeyViewModel?.deletedApiKeyCount ?: remember { kotlinx.coroutines.flow.MutableStateFlow(0) }).collectAsStateWithLifecycle()
+    val totalDeletedCount = deletedPasswordCount + deletedApiKeyCount
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    var isAutofillEnabled by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val am = context.getSystemService(android.view.autofill.AutofillManager::class.java)
+                am != null && am.isAutofillSupported && am.hasEnabledAutofillServices()
+            } else false
+        )
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val am = context.getSystemService(android.view.autofill.AutofillManager::class.java)
+                    isAutofillEnabled = am != null && am.isAutofillSupported && am.hasEnabledAutofillServices()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     LaunchedEffect(authState.error) {
         authState.error?.let {
@@ -454,6 +495,136 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Screen Privacy (FLAG_SECURE)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Screen Privacy",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "Block screenshots and hide content in recent apps switcher",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = authState.isScreenSecurityEnabled,
+                        onCheckedChange = { authViewModel.setScreenSecurity(it) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Android Autofill Service
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bounceClick {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            try {
+                                val intent = Intent(android.provider.Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE).apply {
+                                    data = android.net.Uri.parse("package:com.aipos.aipospm")
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                try {
+                                    val fallback = Intent(android.provider.Settings.ACTION_SETTINGS)
+                                    context.startActivity(fallback)
+                                } catch (_: Exception) {}
+                            }
+                        } else {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Autofill requires Android 8.0 or higher")
+                            }
+                        }
+                    },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Autofill Service",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            if (isAutofillEnabled) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(SecurityGreen.copy(alpha = 0.12f))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Active",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SecurityGreen
+                                    )
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(WarningAmber.copy(alpha = 0.12f))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "Disabled",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = WarningAmber
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = if (isAutofillEnabled)
+                                "AIPOS is ready to autofill passwords in apps & browsers"
+                            else
+                                "Tap to enable AIPOS as your device's Autofill Provider",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Configure Autofill",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             // Change password
             Card(
                 modifier = Modifier
@@ -660,6 +831,58 @@ fun SettingsScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Trash / Recently Deleted button card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bounceClick(onNavigateToTrash),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Trash",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (totalDeletedCount > 0) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(DangerRed.copy(alpha = 0.12f))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "$totalDeletedCount",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = DangerRed
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = "Restore or permanently delete items (30-day auto purge)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Backup & Restore Section
@@ -800,7 +1023,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     InfoRow("App Name", "AIPOS Password Manager")
-                    InfoRow("Version", "1.3.0")
+                    InfoRow("Version", "1.4.0")
                     InfoRow("Developed by", "gininaba")
                     InfoRow("Security", "AES-256-GCM Encryption")
                     InfoRow("Storage", "Fully Offline (Local Only)")

@@ -114,6 +114,7 @@ fun HomeScreen(
     val favoritePasswords by passwordViewModel.favoritePasswords.collectAsStateWithLifecycle()
     val favoriteApiKeys by apiKeyViewModel.favoriteApiKeys.collectAsStateWithLifecycle()
     val breachedPasswordCount by passwordViewModel.breachedPasswordCount.collectAsStateWithLifecycle()
+    val reusedPasswordCount by passwordViewModel.reusedPasswordCount.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -145,7 +146,7 @@ fun HomeScreen(
                         if (topBarSubtitle != null) {
                             Text(
                                 text = topBarSubtitle,
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -162,7 +163,9 @@ fun HomeScreen(
             )
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
@@ -171,7 +174,11 @@ fun HomeScreen(
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
+                    onClick = {
+                        passwordViewModel.setShowCompromisedOnlyFilter(false)
+                        passwordViewModel.setShowReusedOnlyFilter(false)
+                        selectedTab = 1
+                    },
                     icon = { Icon(Icons.Default.Password, contentDescription = "Passwords") },
                     label = { Text("Passwords") }
                 )
@@ -244,11 +251,15 @@ fun HomeScreen(
                     favoritePasswords = favoritePasswords,
                     favoriteApiKeys = favoriteApiKeys,
                     breachedPasswordCount = breachedPasswordCount,
+                    reusedPasswordCount = reusedPasswordCount,
                     onNavigateToPasswords = {
                         if (breachedPasswordCount > 0) {
                             passwordViewModel.setShowCompromisedOnlyFilter(true)
+                        } else if (reusedPasswordCount > 0) {
+                            passwordViewModel.setShowReusedOnlyFilter(true)
                         } else {
                             passwordViewModel.setShowCompromisedOnlyFilter(false)
+                            passwordViewModel.setShowReusedOnlyFilter(false)
                         }
                         selectedTab = 1
                     },
@@ -302,6 +313,7 @@ private fun DashboardContent(
     favoritePasswords: List<PasswordEntry>,
     favoriteApiKeys: List<ApiKeyEntry>,
     breachedPasswordCount: Int,
+    reusedPasswordCount: Int = 0,
     onNavigateToPasswords: () -> Unit,
     onNavigateToApiKeys: () -> Unit,
     onNavigateToPasswordDetail: (Int) -> Unit,
@@ -314,23 +326,30 @@ private fun DashboardContent(
     modifier: Modifier = Modifier
 ) {
     val totalEntries = passwordCount + apiKeyCount
-    val score = if (passwordCount == 0) 100 else (((passwordCount - breachedPasswordCount).toFloat() / passwordCount) * 100).toInt()
+    val issueCount = (breachedPasswordCount + reusedPasswordCount).coerceAtMost(passwordCount)
+    val score = if (passwordCount == 0) 100 else (((passwordCount - issueCount).toFloat() / passwordCount) * 100).toInt()
 
     val isCompromised = breachedPasswordCount > 0
+    val isReused = reusedPasswordCount > 0
+
     val statusTitle = when {
         totalEntries == 0 -> "Welcome to AIPOS"
         isCompromised -> "Action Required"
+        isReused -> "Review Recommended"
         else -> "Vault Protected"
     }
 
     val statusDesc = when {
         totalEntries == 0 -> "Your credentials vault is empty. Tap to add your first entry."
         isCompromised -> "$breachedPasswordCount weak or compromised passwords detected. Review them immediately."
+        isReused -> "$reusedPasswordCount reused passwords detected across your accounts."
         else -> "All local credentials and API keys are fully encrypted and secure."
     }
 
     val ringColor = when {
         totalEntries == 0 -> MaterialTheme.colorScheme.primary
+        isCompromised -> DangerRed
+        isReused -> WarningAmber
         score == 100 -> SecurityGreen
         score >= 70 -> WarningAmber
         else -> DangerRed

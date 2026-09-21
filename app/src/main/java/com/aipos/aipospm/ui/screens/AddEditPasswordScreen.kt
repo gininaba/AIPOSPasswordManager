@@ -111,12 +111,6 @@ fun AddEditPasswordScreen(
 
     var isPasswordBreached by remember { mutableStateOf(false) }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            passwordViewModel.clearSelection()
-        }
-    }
-
     LaunchedEffect(password) {
         if (password.isNotEmpty()) {
             kotlinx.coroutines.delay(250)
@@ -162,7 +156,6 @@ fun AddEditPasswordScreen(
     LaunchedEffect(uiState.saveSuccess) {
         if (uiState.saveSuccess) {
             passwordViewModel.resetSaveSuccess()
-            passwordViewModel.clearSelection()
             onNavigateBack()
         }
     }
@@ -220,10 +213,7 @@ fun AddEditPasswordScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        passwordViewModel.clearSelection()
-                        onNavigateBack()
-                    }) {
+                    IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
