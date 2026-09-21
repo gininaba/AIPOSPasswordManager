@@ -1,12 +1,56 @@
-# AIPOS Password Manager
+<div align="center">
 
-A premium, fully offline, and highly secure Android application for storing passwords and API keys. Designed with modern Material You guidelines (dynamic colors), hardware-backed cryptography via Android Keystore, native Android Autofill service, and a local-first architecture.
+  <a href="https://github.com/gininaba/AIPOSPasswordManager">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
+      <source media="(prefers-color-scheme: light)" srcset="assets/logo-light.png">
+      <img src="assets/logo.png" alt="AIPOS Password Manager Logo" width="130" height="130">
+    </picture>
+  </a>
 
-[![Kotlin Version](https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![Android SDK](https://img.shields.io/badge/Android%20SDK-35%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
-[![Security](https://img.shields.io/badge/Security-Android%20Keystore-blue?style=for-the-badge)](https://developer.android.com/training/articles/keystore)
-[![Network](https://img.shields.io/badge/Network-100%25%20Offline-brightgreen?style=for-the-badge)](https://github.com/gininaba/AIPOSPasswordManager)
-[![F-Droid](https://img.shields.io/f-droid/v/com.aipos.aipospm?style=for-the-badge&logo=f-droid&logoColor=white)](https://f-droid.org/packages/com.aipos.aipospm/)
+  <h1>AIPOS Password Manager</h1>
+
+  <p>
+    <a href="https://f-droid.org/packages/com.aipos.aipospm/"><img src="https://img.shields.io/badge/F--Droid-Verified%20%26%20Compliant-3DDC84?style=for-the-badge&logo=f-droid&logoColor=white" alt="F-Droid Verified" /></a>
+    &nbsp;
+    <a href="https://developer.android.com/training/articles/keystore"><img src="https://img.shields.io/badge/Security-Android%20Keystore%20(AES--256--GCM)-blue?style=for-the-badge&logo=android&logoColor=white" alt="Keystore Security" /></a>
+  </p>
+
+  <p>
+    <strong>A premium, fully offline, and zero-knowledge Android password manager built with Material You, hardware-backed Android Keystore cryptography, and native system-wide Autofill.</strong>
+  </p>
+
+  <p>
+    <a href="#features">Features</a> •
+    <a href="#app-showcase">Showcase</a> •
+    <a href="#architecture">Architecture</a> •
+    <a href="#security-specifications">Security Specs</a> •
+    <a href="docs/USER_GUIDE.md">User Guide</a> •
+    <a href="docs/DEVELOPER_GUIDE.md">Developer Guide</a> •
+    <a href="#getting-started">Installation</a> •
+    <a href="#license">License</a>
+  </p>
+
+  <p>
+    <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin Version" /></a>
+    <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-SDK%2035%2B-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android SDK" /></a>
+    <a href="https://github.com/gininaba/AIPOSPasswordManager/releases"><img src="https://img.shields.io/badge/Release-v1.4.0-blue?style=flat-square" alt="Latest Release" /></a>
+    <a href="https://f-droid.org/packages/com.aipos.aipospm/"><img src="https://img.shields.io/f-droid/v/com.aipos.aipospm?style=flat-square&logo=f-droid&logoColor=white" alt="F-Droid" /></a>
+    <a href="https://github.com/gininaba/AIPOSPasswordManager"><img src="https://img.shields.io/badge/Network-100%25%20Offline-success?style=flat-square" alt="100% Offline" /></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License" /></a>
+  </p>
+
+</div>
+
+---
+
+<div id="app-showcase" align="center">
+  <img src="assets/screenshots/home.jpg" width="31%" alt="Vault Health Dashboard" />
+  &nbsp;&nbsp;
+  <img src="assets/screenshots/passwords.jpg" width="31%" alt="Passwords Vault" />
+  &nbsp;&nbsp;
+  <img src="assets/screenshots/settings.jpg" width="31%" alt="Security & Settings" />
+</div>
 
 ---
 
