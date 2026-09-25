@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import com.aipos.aipospm.ui.components.VaultIconRegistry
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -149,8 +150,8 @@ fun PasswordDetailScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Password") },
-            text = { Text("Are you sure you want to delete \"${entry?.title}\"? This cannot be undone.") },
+            title = { Text("Move to Trash?") },
+            text = { Text("Are you sure you want to move \"${entry?.title}\" to the Trash? You can restore it within 30 days.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -162,7 +163,7 @@ fun PasswordDetailScreen(
                         showDeleteDialog = false
                     }
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text("Move to Trash", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -263,6 +264,33 @@ fun PasswordDetailScreen(
                                 .padding(20.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            val customIcon = VaultIconRegistry.getIcon(entry.icon)
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.25f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (customIcon != null) {
+                                    Icon(
+                                        imageVector = customIcon,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                } else {
+                                    Text(
+                                        text = entry.title.take(1).uppercase(),
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = entry.title,

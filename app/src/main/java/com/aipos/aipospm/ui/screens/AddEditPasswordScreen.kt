@@ -20,8 +20,25 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
+import com.aipos.aipospm.data.CategoryPresets
+import com.aipos.aipospm.data.CategoryType
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.Password
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.aipos.aipospm.ui.components.IconPickerBottomSheet
+import com.aipos.aipospm.ui.components.VaultIconRegistry
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Warning
@@ -94,10 +111,14 @@ fun AddEditPasswordScreen(
     var selectedCategoryId by rememberSaveable { mutableStateOf<Int?>(null) }
     var isFavorite by rememberSaveable { mutableStateOf(false) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
-    var isEditing by rememberSaveable { mutableStateOf(false) }
+    val isEditing = passwordId != null && passwordId > 0
+    var hasLoadedInitialData by rememberSaveable { mutableStateOf(false) }
     var totpSecret by rememberSaveable { mutableStateOf("") }
     var showTotpField by rememberSaveable { mutableStateOf(false) }
     var showScanner by remember { mutableStateOf(false) }
+    var iconId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showIconPicker by rememberSaveable { mutableStateOf(false) }
+    val iconPickerSheetState = rememberModalBottomSheetState()
 
     val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -126,16 +147,16 @@ fun AddEditPasswordScreen(
 
     // Load existing entry for editing
     LaunchedEffect(passwordId) {
-        if (passwordId != null && passwordId > 0) {
-            isEditing = true
+        if (isEditing) {
             passwordViewModel.loadPassword(passwordId)
         }
     }
 
-    // Populate fields when entry is loaded
-    LaunchedEffect(uiState.selectedPassword) {
-        uiState.selectedPassword?.let { entry ->
-            if (isEditing) {
+    // Populate fields once when entry is loaded
+    LaunchedEffect(uiState.selectedPassword, uiState.decryptedPassword, hasLoadedInitialData) {
+        if (isEditing && !hasLoadedInitialData) {
+            val entry = uiState.selectedPassword
+            if (entry != null && entry.id == passwordId && !uiState.isLoading) {
                 title = entry.title
                 username = entry.username
                 password = uiState.decryptedPassword
@@ -143,12 +164,14 @@ fun AddEditPasswordScreen(
                 notes = entry.notes
                 selectedCategoryId = entry.categoryId
                 isFavorite = entry.isFavorite
+                iconId = entry.icon
                 // Populate TOTP secret if present
                 val decryptedTotp = uiState.decryptedTotpSecret
                 if (decryptedTotp.isNotEmpty()) {
                     totpSecret = decryptedTotp
                     showTotpField = true
                 }
+                hasLoadedInitialData = true
             }
         }
     }
@@ -244,6 +267,108 @@ fun AddEditPasswordScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
+            if (showIconPicker) {
+                IconPickerBottomSheet(
+                    sheetState = iconPickerSheetState,
+                    currentIconId = iconId,
+                    defaultIconVector = Icons.Default.Password,
+                    defaultLabel = "Default (Auto / First Letter)",
+                    onIconSelected = { iconId = it },
+                    onDismissRequest = { showIconPicker = false }
+                )
+            }
+
+            // Custom Icon Selection Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable { showIconPicker = true },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val selectedIcon = VaultIconRegistry.getIcon(iconId)
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (selectedIcon != null) {
+                            Icon(
+                                imageVector = selectedIcon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        } else if (title.isNotBlank()) {
+                            Text(
+                                text = title.take(1).uppercase(),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Password,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Custom Icon",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = VaultIconRegistry.getIconItem(iconId)?.label ?: "Default (Auto / First Letter)",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = { showIconPicker = true },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Choose")
+                    }
+
+                    if (iconId != null) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = { iconId = null },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Reset Icon",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -302,6 +427,65 @@ fun AddEditPasswordScreen(
                         contentDescription = "Create Category",
                         tint = MaterialTheme.colorScheme.primary
                     )
+                }
+            }
+
+            // Smart Category Suggestion Pill
+            val suggestedCategoryName = remember(title, selectedCategoryId) {
+                if (selectedCategoryId == null && title.isNotBlank()) {
+                    CategoryPresets.suggestCategory(title, CategoryType.PASSWORD)
+                } else null
+            }
+            val matchingCat = remember(suggestedCategoryName, categories) {
+                if (suggestedCategoryName != null) {
+                    categories.find { it.name.equals(suggestedCategoryName, ignoreCase = true) }
+                } else null
+            }
+
+            AnimatedVisibility(
+                visible = suggestedCategoryName != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                if (suggestedCategoryName != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp, start = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SuggestionChip(
+                            onClick = {
+                                if (matchingCat != null) {
+                                    selectedCategoryId = matchingCat.id
+                                } else {
+                                    categoryViewModel.addCategory(suggestedCategoryName, CategoryType.PASSWORD) { newId ->
+                                        selectedCategoryId = newId
+                                    }
+                                }
+                            },
+                            label = {
+                                Text(
+                                    text = if (matchingCat != null) "Suggested: ${matchingCat.name}"
+                                    else "Create Folder: $suggestedCategoryName",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                        )
+                    }
                 }
             }
 
@@ -505,7 +689,8 @@ fun AddEditPasswordScreen(
                         notes = notes.trim(),
                         categoryId = selectedCategoryId,
                         isFavorite = isFavorite,
-                        totpSecret = totpSecret.trim().ifBlank { null }
+                        totpSecret = totpSecret.trim().ifBlank { null },
+                        icon = iconId
                     )
                 },
                 modifier = Modifier

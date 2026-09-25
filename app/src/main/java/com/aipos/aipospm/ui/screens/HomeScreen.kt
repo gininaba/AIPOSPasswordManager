@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.VpnKey
+import com.aipos.aipospm.ui.components.VaultIconRegistry
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -821,7 +822,8 @@ private fun FavoriteItemCard(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val icon = if (item.isPassword) Icons.Default.Shield else Icons.Default.VpnKey
+            val customIcon = VaultIconRegistry.getIcon(item.icon)
+            val icon = customIcon ?: if (item.isPassword) Icons.Default.Shield else Icons.Default.VpnKey
             val iconColor = if (item.isPassword) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
             val iconBg = iconColor.copy(alpha = 0.1f)
 
@@ -894,12 +896,14 @@ sealed interface FavoriteItem {
     val title: String
     val subtitle: String
     val isPassword: Boolean
+    val icon: String?
 
     data class Password(val entry: PasswordEntry) : FavoriteItem {
         override val id = entry.id
         override val title = entry.title
         override val subtitle = entry.username
         override val isPassword = true
+        override val icon = entry.icon
     }
 
     data class ApiKey(val entry: ApiKeyEntry) : FavoriteItem {
@@ -907,5 +911,6 @@ sealed interface FavoriteItem {
         override val title = entry.serviceName
         override val subtitle = "API Key"
         override val isPassword = false
+        override val icon = entry.icon
     }
 }

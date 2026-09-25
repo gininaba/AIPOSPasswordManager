@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 import com.aipos.aipospm.data.CategoryType
+import com.aipos.aipospm.data.CategoryPresets
+import com.aipos.aipospm.data.VaultPreferencesManager
+import kotlinx.coroutines.Dispatchers
 
 /**
  * ViewModel for managing custom categories/folders.
@@ -22,6 +25,19 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
     private val categoryDao = db.categoryDao()
     private val passwordDao = db.passwordDao()
     private val apiKeyDao = db.apiKeyDao()
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            val prefs = VaultPreferencesManager.getInstance(application)
+            if (!prefs.hasSeededCategoryPresets()) {
+                val current = categoryDao.getAllCategoriesSync()
+                if (current.isEmpty()) {
+                    categoryDao.insertCategories(CategoryPresets.getDefaultCategories())
+                }
+                prefs.setHasSeededCategoryPresets(true)
+            }
+        }
+    }
 
     val categories: StateFlow<List<Category>> = categoryDao.getAllCategories()
         .stateIn(
@@ -44,16 +60,49 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
             initialValue = emptyList()
         )
 
-    fun addCategory(name: String, type: CategoryType = CategoryType.PASSWORD) {
+    fun addCategory(name: String, type: CategoryType = CategoryType.PASSWORD, onCreated: ((Int) -> Unit)? = null) {
         viewModelScope.launch {
             val trimmedName = name.trim()
             if (trimmedName.isNotEmpty()) {
                 val existing = categoryDao.getCategoriesByTypeSync(type.name)
-                if (existing.any { it.name.equals(trimmedName, ignoreCase = true) }) {
+                val match = existing.find { it.name.equals(trimmedName, ignoreCase = true) }
+                if (match != null) {
+                    onCreated?.invoke(match.id)
                     return@launch
                 }
-                categoryDao.insertCategory(Category(name = trimmedName, type = type.name))
+                val newId = categoryDao.insertCategory(Category(name = trimmedName, type = type.name))
+                onCreated?.invoke(newId.toInt())
             }
+        }
+    }
+
+    fun loadPresetCategories(type: CategoryType? = null, onComplete: (() -> Unit)? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val existing = categoryDao.getAllCategoriesSync()
+            val existingNames = existing.map { it.name.trim().lowercase() }.toSet()
+            val toInsert = mutableListOf<Category>()
+
+            if (type == null || type == CategoryType.PASSWORD) {
+                CategoryPresets.PASSWORD_PRESETS.forEach { name ->
+                    if (!existingNames.contains(name.lowercase())) {
+                        toInsert.add(Category(name = name, type = CategoryType.PASSWORD.name))
+                    }
+                }
+            }
+
+            if (type == null || type == CategoryType.API_KEY) {
+                CategoryPresets.API_KEY_PRESETS.forEach { name ->
+                    if (!existingNames.contains(name.lowercase())) {
+                        toInsert.add(Category(name = name, type = CategoryType.API_KEY.name))
+                    }
+                }
+            }
+
+            if (toInsert.isNotEmpty()) {
+                categoryDao.insertCategories(toInsert)
+            }
+            VaultPreferencesManager.getInstance(getApplication()).setHasSeededCategoryPresets(true)
+            onComplete?.invoke()
         }
     }
 

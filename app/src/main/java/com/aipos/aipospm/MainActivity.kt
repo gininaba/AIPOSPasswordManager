@@ -34,6 +34,7 @@ class MainActivity : FragmentActivity() {
         override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
             if (intent?.action == android.content.Intent.ACTION_SCREEN_OFF) {
                 authViewModel.lock()
+                passwordViewModel.clearDecryptionCache()
             }
         }
     }
@@ -137,6 +138,7 @@ class MainActivity : FragmentActivity() {
                 val elapsed = System.currentTimeMillis() - lastActiveTime
                 if (elapsed > timeoutMinutes * 60 * 1000) {
                     authViewModel.lock()
+                    passwordViewModel.clearDecryptionCache()
                     lastActiveTime = 0L
                 }
             }

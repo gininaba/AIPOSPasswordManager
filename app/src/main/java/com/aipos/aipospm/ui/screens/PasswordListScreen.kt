@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import com.aipos.aipospm.ui.components.VaultIconRegistry
 import com.aipos.aipospm.ui.theme.WarningAmber
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -670,12 +671,22 @@ private fun PasswordCard(
                                 )
                             }
                             else -> {
-                                Text(
-                                    text = entry.title.take(1).uppercase(),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                                val customIcon = VaultIconRegistry.getIcon(entry.icon)
+                                if (customIcon != null) {
+                                    Icon(
+                                        imageVector = customIcon,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                } else {
+                                    Text(
+                                        text = entry.title.take(1).uppercase(),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
                             }
                         }
                     }

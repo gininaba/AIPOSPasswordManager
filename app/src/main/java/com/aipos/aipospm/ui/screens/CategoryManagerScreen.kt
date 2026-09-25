@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
@@ -68,6 +69,31 @@ fun CategoryManagerScreen(
     var renameNewName by rememberSaveable(categoryToRename) { mutableStateOf(categoryToRename?.name ?: "") }
     
     var categoryToDelete by remember { mutableStateOf<Category?>(null) }
+    var showLoadPresetsDialog by remember { mutableStateOf(false) }
+
+    // Load Presets dialog
+    if (showLoadPresetsDialog) {
+        AlertDialog(
+            onDismissRequest = { showLoadPresetsDialog = false },
+            title = { Text("Load Category Presets") },
+            text = { Text("Add standard curated category presets for Passwords and API Keys? Any existing categories will be preserved.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        categoryViewModel.loadPresetCategories()
+                        showLoadPresetsDialog = false
+                    }
+                ) {
+                    Text("Load Presets")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLoadPresetsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     // Rename dialog
     if (categoryToRename != null) {
@@ -139,6 +165,15 @@ fun CategoryManagerScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showLoadPresetsDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Load Presets",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

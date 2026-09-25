@@ -25,6 +25,7 @@ class VaultPreferencesManager(context: Context) {
         private const val KEY_API_KEY_SORT_OPTION = "api_key_sort_option"
         private const val KEY_PASSWORD_PIN_FAVORITES = "password_pin_favorites"
         private const val KEY_API_KEY_PIN_FAVORITES = "api_key_pin_favorites"
+        private const val KEY_HAS_SEEDED_CATEGORY_PRESETS = "has_seeded_category_presets"
 
         @Volatile
         private var instance: VaultPreferencesManager? = null
@@ -76,5 +77,13 @@ class VaultPreferencesManager(context: Context) {
 
     fun setApiKeyPinFavorites(pin: Boolean) {
         prefs.edit().putBoolean(KEY_API_KEY_PIN_FAVORITES, pin).apply()
+    }
+
+    fun hasSeededCategoryPresets(): Boolean {
+        return prefs.getBoolean(KEY_HAS_SEEDED_CATEGORY_PRESETS, false)
+    }
+
+    fun setHasSeededCategoryPresets(seeded: Boolean) {
+        prefs.edit().putBoolean(KEY_HAS_SEEDED_CATEGORY_PRESETS, seeded).apply()
     }
 }

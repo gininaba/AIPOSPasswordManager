@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
@@ -59,7 +60,8 @@ data class PasswordBackup(
     val createdAt: Long?,
     val updatedAt: Long?,
     val plaintextTotp: String? = null,
-    val customOrder: Int? = null
+    val customOrder: Int? = null,
+    val icon: String? = null
 )
 
 data class ApiKeyBackup(
@@ -71,7 +73,8 @@ data class ApiKeyBackup(
     val isFavorite: Boolean?,
     val createdAt: Long?,
     val updatedAt: Long?,
-    val customOrder: Int? = null
+    val customOrder: Int? = null,
+    val icon: String? = null
 )
 
 data class VaultAudit(
@@ -94,6 +97,11 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     private val passwordDao = db.passwordDao()
     private val cryptoManager = CryptoManager()
     private val vaultPrefs = VaultPreferencesManager.getInstance(application)
+    private val decryptionCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    fun clearDecryptionCache() {
+        decryptionCache.clear()
+    }
 
     private val _sortOption = MutableStateFlow(vaultPrefs.getPasswordSortOption())
     val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
@@ -186,8 +194,15 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         _showReusedOnlyFilter,
         vaultAudit
     ) { query, categoryId, compromisedOnly, reusedOnly, audit ->
-        Triple(query, categoryId, Pair(compromisedOnly to audit.compromisedIds, reusedOnly to audit.reusedIds))
-    }
+        Triple(
+            query,
+            categoryId,
+            Pair(
+                compromisedOnly to if (compromisedOnly) audit.compromisedIds else emptySet(),
+                reusedOnly to if (reusedOnly) audit.reusedIds else emptySet()
+            )
+        )
+    }.distinctUntilChanged()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val passwords: StateFlow<List<PasswordEntry>> = combine(
@@ -324,11 +339,13 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         notes: String,
         categoryId: Int?,
         isFavorite: Boolean,
-        totpSecret: String? = null
+        totpSecret: String? = null,
+        icon: String? = null
     ) {
         viewModelScope.launch {
             try {
                 val (encrypted, iv) = cryptoManager.encrypt(password)
+                decryptionCache["${encrypted}:${iv}"] = password
 
                 // Encrypt TOTP secret if provided
                 val encryptedTotp: Pair<String, String>? = if (!totpSecret.isNullOrBlank()) {
@@ -346,6 +363,17 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     System.currentTimeMillis()
                 }
 
+                val customOrder = if (id != null && id > 0) {
+                    val selected = _uiState.value.selectedPassword
+                    if (selected != null && selected.id == id) {
+                        selected.customOrder
+                    } else {
+                        passwordDao.getPasswordById(id).first()?.customOrder ?: 0
+                    }
+                } else {
+                    0
+                }
+
                 val entry = PasswordEntry(
                     id = id ?: 0,
                     title = title,
@@ -359,7 +387,9 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     createdAt = createdAt,
                     updatedAt = System.currentTimeMillis(),
                     encryptedTotpSecret = encryptedTotp?.first,
-                    totpIv = encryptedTotp?.second
+                    totpIv = encryptedTotp?.second,
+                    customOrder = customOrder,
+                    icon = icon
                 )
                 if (id != null) {
                     passwordDao.updatePassword(entry)
@@ -412,7 +442,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             createdAt = it.createdAt,
                             updatedAt = it.updatedAt,
                             plaintextTotp = plaintextTotp,
-                            customOrder = it.customOrder
+                            customOrder = it.customOrder,
+                            icon = it.icon
                         )
                     }
                     val apiBackup = apiKeysList.map {
@@ -428,7 +459,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             isFavorite = it.isFavorite,
                             createdAt = it.createdAt,
                             updatedAt = it.updatedAt,
-                            customOrder = it.customOrder
+                            customOrder = it.customOrder,
+                            icon = it.icon
                         )
                     }
                     Triple(catBackup, pwBackup, apiBackup)
@@ -550,7 +582,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             updatedAt = entry.backup.updatedAt ?: System.currentTimeMillis(),
                             encryptedTotpSecret = entry.totpEnc,
                             totpIv = entry.totpIv,
-                            customOrder = entry.backup.customOrder ?: 0
+                            customOrder = entry.backup.customOrder ?: 0,
+                            icon = entry.backup.icon
                         )
                     }
                     passwordDao.insertPasswords(passwordsToInsert)
@@ -566,7 +599,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             isFavorite = k.isFavorite ?: false,
                             createdAt = k.createdAt ?: System.currentTimeMillis(),
                             updatedAt = k.updatedAt ?: System.currentTimeMillis(),
-                            customOrder = k.customOrder ?: 0
+                            customOrder = k.customOrder ?: 0,
+                            icon = k.icon
                         )
                     }
                     db.apiKeyDao().insertApiKeys(apiKeysToInsert)
@@ -733,8 +767,14 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun decryptPassword(entry: PasswordEntry): String {
+        val cacheKey = "${entry.encryptedPassword}:${entry.iv}"
+        val cached = decryptionCache[cacheKey]
+        if (cached != null) return cached
+
         return try {
-            cryptoManager.decrypt(entry.encryptedPassword, entry.iv)
+            val decrypted = cryptoManager.decrypt(entry.encryptedPassword, entry.iv)
+            decryptionCache[cacheKey] = decrypted
+            decrypted
         } catch (e: Exception) {
             "*** Decryption failed ***"
         }

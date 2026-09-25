@@ -24,5 +24,6 @@ data class PasswordEntry(
     val isDeleted: Boolean = false,
     val deletedAt: Long? = null,
     @ColumnInfo(defaultValue = "0")
-    val customOrder: Int = 0
+    val customOrder: Int = 0,
+    val icon: String? = null
 )

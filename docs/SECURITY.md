@@ -80,4 +80,9 @@ sequenceDiagram
 - **Authenticated Datasets**: Every autofill suggestion attaches an `IntentSender` targeting `AutofillAuthActivity`. The Android OS only receives decrypted credentials after the user explicitly authorizes the fill action via `BIOMETRIC_STRONG` (fingerprint/face) or the Master Password.
 - **Domain & Package Validation**: Credentials are only suggested when the calling app's package name or the browser's web domain positively matches verified vault entries.
 
+### 4.6 Threat: In-Memory Plaintext Retention & Decryption Cache Exposure
+- **Mitigation**: The in-memory session decryption cache (`ConcurrentHashMap<String, String>`) exists strictly in volatile RAM within `PasswordViewModel` to accelerate recurring vault health audits and UI list lookups during an active authenticated session without repeated hardware Keystore round-trips.
+- **Zero Disk Persistence**: The cache is purely transient and is never serialized, logged, or written to SQLite or SharedPreferences.
+- **Immediate Lifecycle Flushing**: Whenever the application is locked (via manual lock action, biometric auto-lock timeout, or app lifecycle transition to background), `passwordViewModel.clearDecryptionCache()` is invoked immediately in `MainActivity.kt` before the screen lock overlay is mounted, clearing all cached plaintexts from memory.
+
 

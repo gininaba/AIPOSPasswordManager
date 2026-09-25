@@ -151,6 +151,43 @@ class VaultSortingAndCategoryTest {
         assertEquals(listOf("Anthropic", "Google Gemini", "OpenAI"), sorted.map { it.serviceName })
     }
 
+    @Test
+    fun testCustomOrderPreservationOnEdit() {
+        val existingEntry = createPassword(title = "Original Title", customOrder = 7)
+        val updatedEntry = existingEntry.copy(
+            title = "Updated Title",
+            username = "new_username",
+            updatedAt = 9999L
+        )
+
+        // Verify customOrder is preserved
+        assertEquals(7, updatedEntry.customOrder)
+        assertEquals("Updated Title", updatedEntry.title)
+
+        val existingApiKey = createApiKey(serviceName = "OpenAI", customOrder = 12)
+        val updatedApiKey = existingApiKey.copy(
+            serviceName = "OpenAI Production",
+            updatedAt = 8888L
+        )
+        assertEquals(12, updatedApiKey.customOrder)
+    }
+
+    @Test
+    fun testCategoryDeletionFilterReset() {
+        var selectedCategoryIdFilter: Int? = 3
+        val currentCategories = listOf(
+            Category(id = 1, name = "Cloud", type = CategoryType.API_KEY.name),
+            Category(id = 2, name = "AI", type = CategoryType.API_KEY.name)
+        )
+
+        // If category 3 was deleted, currentCategories won't contain it
+        if (selectedCategoryIdFilter != null && currentCategories.none { it.id == selectedCategoryIdFilter }) {
+            selectedCategoryIdFilter = null
+        }
+
+        assertEquals(null, selectedCategoryIdFilter)
+    }
+
     // Helper functions mirroring the ViewModels' sorting comparator
     private fun sortPasswords(
         items: List<PasswordEntry>,

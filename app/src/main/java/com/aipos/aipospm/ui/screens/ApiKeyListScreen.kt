@@ -44,6 +44,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.aipos.aipospm.data.SortOption
 import com.aipos.aipospm.ui.components.SortBottomSheet
+import com.aipos.aipospm.ui.components.VaultIconRegistry
 import com.aipos.aipospm.ui.components.VaultSectionHeader
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Card
@@ -510,8 +511,9 @@ private fun ApiKeyCard(
                         modifier = Modifier.size(44.dp),
                         contentAlignment = Alignment.Center
                     ) {
+                        val iconVector = VaultIconRegistry.getIcon(entry.icon) ?: Icons.Default.VpnKey
                         Icon(
-                            imageVector = Icons.Default.VpnKey,
+                            imageVector = iconVector,
                             contentDescription = null,
                             modifier = Modifier.size(22.dp),
                             tint = MaterialTheme.colorScheme.onSecondaryContainer

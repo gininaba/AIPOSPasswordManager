@@ -160,6 +160,14 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
             val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
             apiKeyDao.purgeOldDeletedApiKeys(thirtyDaysAgo)
         }
+        viewModelScope.launch {
+            db.categoryDao().getCategoriesByType(CategoryType.API_KEY.name).collect { cats ->
+                val selected = _selectedCategoryIdFilter.value
+                if (selected != null && cats.none { it.id == selected }) {
+                    _selectedCategoryIdFilter.value = null
+                }
+            }
+        }
     }
 
     private val _uiState = MutableStateFlow(ApiKeyUiState())
@@ -179,7 +187,8 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
         apiKey: String,
         notes: String,
         categoryId: Int?,
-        isFavorite: Boolean
+        isFavorite: Boolean,
+        icon: String? = null
     ) {
         viewModelScope.launch {
             try {
@@ -195,6 +204,17 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
                     System.currentTimeMillis()
                 }
 
+                val customOrder = if (id != null && id > 0) {
+                    val selected = _uiState.value.selectedApiKey
+                    if (selected != null && selected.id == id) {
+                        selected.customOrder
+                    } else {
+                        apiKeyDao.getApiKeyById(id).first()?.customOrder ?: 0
+                    }
+                } else {
+                    0
+                }
+
                 val entry = ApiKeyEntry(
                     id = id ?: 0,
                     serviceName = serviceName,
@@ -204,7 +224,9 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
                     categoryId = categoryId,
                     isFavorite = isFavorite,
                     createdAt = createdAt,
-                    updatedAt = System.currentTimeMillis()
+                    updatedAt = System.currentTimeMillis(),
+                    customOrder = customOrder,
+                    icon = icon
                 )
                 if (id != null) {
                     apiKeyDao.updateApiKey(entry)

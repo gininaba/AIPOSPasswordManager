@@ -10,7 +10,7 @@ Key Features:
   - PBKDF2 with HmacSHA256 (120,000 iterations) for master password verification.
   - EncryptedSharedPreferences to safely cache user authentication metadata.
   - Native Biometric Prompt support.
-* Portable Encrypted Backups: Export and import your local database to an encrypted JSON backup file using a password derived via PBKDF2 (10,000 iterations) + AES-256-GCM.
+* Portable Encrypted Backups: Export and import your local database to an encrypted JSON backup file using a password derived via PBKDF2 (100,000 iterations) + AES-256-GCM.
 * Offline Breach Check: Real-time evaluation of master passwords and entry credentials against a bundled database of common weak passwords—without making a single network request.
 * Built-in 2FA Authenticator (TOTP): Scan QR codes directly offline using the built-in CameraX scanner and generate time-based one-time passwords directly within the app.
 * Auto-Lock Timeout: Configurable inactivity timers (Immediately, 1 min, 5 min, 10 min, Never) to keep your vault secure when backgrounded.

@@ -34,7 +34,7 @@
   <p>
     <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin Version" /></a>
     <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-SDK%2035%2B-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android SDK" /></a>
-    <a href="https://github.com/gininaba/AIPOSPasswordManager/releases"><img src="https://img.shields.io/badge/Release-v1.5.0-blue?style=flat-square" alt="Latest Release" /></a>
+    <a href="https://github.com/gininaba/AIPOSPasswordManager/releases"><img src="https://img.shields.io/badge/Release-v1.6.0--beta-blue?style=flat-square" alt="Latest Release" /></a>
     <a href="https://f-droid.org/packages/com.aipos.aipospm/"><img src="https://img.shields.io/f-droid/v/com.aipos.aipospm?style=flat-square&logo=f-droid&logoColor=white" alt="F-Droid" /></a>
     <a href="https://github.com/gininaba/AIPOSPasswordManager"><img src="https://img.shields.io/badge/Network-100%25%20Offline-success?style=flat-square" alt="100% Offline" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License" /></a>
@@ -56,6 +56,16 @@
 
 ## Features
 
+* **Instant Vault Startup & Session Decryption Cache**:
+  * **Decoupled Fast-Path Pipeline**: Separates the initial password list flow from asynchronous cryptographic audits. Large vaults (200+ passwords) render in less than 15 milliseconds upon unlocking.
+  * **Session Decryption Cache**: Thread-safe in-memory cache reuses decrypted values during audit passes to avoid repeated Keystore hardware overhead, automatically flushed from memory when the vault locks or the session expires.
+* **Category Folder Presets & Smart 1-Tap Suggestions**:
+  * **Out-of-the-Box Presets**: Automatically provisions curated folder presets for Passwords (Email & Accounts, Social Media, Financial & Banking, Work & Productivity, Entertainment & Media, Shopping & E-Commerce, Developer & Cloud) and API Keys (AI & Chatbots, Coding & Developer, Cloud Infrastructure, Payment Gateways, Communication & SMS, Analytics & Monitoring) so vaults never start with an empty category list.
+  * **Preset Restoration Tool**: Dedicated "Load Presets" action in Category Manager restores missing defaults on demand without altering existing custom categories.
+  * **Smart 1-Tap Category Suggestions**: Heuristic engine analyzes titles, service names, and URLs offline (e.g. "Google" suggests "Email & Accounts", "ChatGPT/OpenAI" suggests "AI & Chatbots", "Stripe" suggests "Payment Gateways") and displays a 1-tap chip beneath category selectors to auto-assign or create the category instantly.
+* **Curated Custom Icon Picker**:
+  * **4 Curated Domains**: Developer & Cloud, Services & Web, Security & Devices, and General Material Design icons.
+  * **Visual Personalization**: Pick custom icons when creating or editing credentials and API keys with fast search and real-time preview, enhancing visual identification across vault lists, detail views, and home favorites.
 * **Configurable Vault Sorting & Custom Ordering**:
   * **6 Sort Options**: Name (A–Z), Name (Z–A), Recently Updated, Date Created (Newest), Date Created (Oldest), and Custom Order.
   * **Favorites Pinning**: Optional "Keep Favorites on Top" toggle pins starred entries to the top while preserving primary sorting within sections.
@@ -117,26 +127,28 @@ Comprehensive technical, security, and usage documentation is available in the `
 
 ## Architecture
 
-The application is built on modern Android development practices using **Jetpack Compose**, **Room Database (v5)**, and a **Model-View-ViewModel (MVVM)** architecture pattern.
+The application is built on modern Android development practices using **Jetpack Compose**, **Room Database (v6)**, and a **Model-View-ViewModel (MVVM)** architecture pattern.
 
 ```mermaid
 graph TB
     subgraph UI_Layer["UI Layer — Jetpack Compose + Material 3"]
-        MA["MainActivity — FLAG_SECURE Controller"]
+        MA["MainActivity — FLAG_SECURE & Cache Flusher"]
         NAV["NavHost / NavGraph"]
         HS["HomeScreen — Vault Health Dashboard"]
         PLS["PasswordListScreen — Filters, Sort & Badges"]
         KLS["ApiKeyListScreen — Filters & Sort"]
-        CMS["CategoryManagerScreen — Tabbed Management"]
+        CMS["CategoryManagerScreen — Tabbed Hub & Presets"]
         TS["TrashScreen — Soft Delete & Recovery"]
         PDS["PasswordDetailScreen"]
+        IPB["IconPickerBottomSheet — Curated Icon Selector"]
+        VIR["VaultIconRegistry — Material Vector Mapping"]
         AS["AuthScreen"]
     end
 
     subgraph ViewModel_Layer["ViewModel Layer"]
-        PVM["PasswordViewModel — Audit, Sort & Soft Deletes"]
+        PVM["PasswordViewModel — Fast Filter, Audit & Cache"]
         KVM["ApiKeyViewModel — Sort & Soft Deletes"]
-        CVM["CategoryViewModel — Type-Segregated Categories"]
+        CVM["CategoryViewModel — Type-Segregated & Presets"]
         MVM["MainViewModel"]
         AVM["AuthViewModel — Privacy & Session"]
     end
@@ -148,6 +160,7 @@ graph TB
         PBC["PasswordBreachChecker — Offline Dataset"]
         TH["TotpHelper — RFC 6238"]
         CH["ClipboardHelper — Auto-Clear Scheduler"]
+        DC[("In-Memory Session Decryption Cache")]
     end
 
     subgraph Autofill_Subsystem["Autofill Subsystem — Android 8.0+"]
@@ -157,16 +170,19 @@ graph TB
         ASP["AutofillStructureParser — AssistStructure Heuristics"]
     end
 
-    subgraph Data_Layer["Data Layer — Room Database v5"]
-        DB[("AppDatabase — AutoMigration v4 to v5")]
+    subgraph Data_Layer["Data Layer — Room Database v6"]
+        DB[("AppDatabase — SQLite v6 with Migration")]
         PD["PasswordDao — Active, Trash & Order Queries"]
         AD["ApiKeyDao — Active, Trash & Order Queries"]
-        CD["CategoryDao — Type-Segregated Queries"]
-        VPM["VaultPreferencesManager — Sorting & Pinning"]
+        CD["CategoryDao — Type-Segregated & Presets"]
+        CP["CategoryPresets — Standard Folders & Heuristics"]
+        VPM["VaultPreferencesManager — Sorting & Presets"]
     end
 
     MA --> NAV
     NAV --> HS & PLS & KLS & CMS & TS & PDS & AS
+    PLS & KLS & PDS --> IPB
+    IPB --> VIR
     HS & PLS & TS & PDS --> PVM
     KLS & TS --> KVM
     CMS --> CVM
@@ -177,7 +193,9 @@ graph TB
     AAA --> CM & MPM & PD
 
     PVM & KVM --> CM
+    PVM --> DC
     PVM & KVM & CVM --> PD & AD & CD
+    CVM --> CP
     PVM & KVM --> VPM
     PVM --> PBC
     PVM --> TH
@@ -195,7 +213,7 @@ graph TB
 
 * **Language**: Kotlin 2.x
 * **UI**: Jetpack Compose with Material 3 and Navigation Compose
-* **Local Database**: Room 2.7.x with Kotlin Symbol Processing (KSP) and AutoMigration (v3 to v4)
+* **Local Database**: Room 2.7.x with Kotlin Symbol Processing (KSP) and Schema v6
 * **System Integration**: Android Autofill Framework (`AutofillService`, API 26+)
 * **Hardware Cryptography**: Android Keystore (`AES/GCM/NoPadding`, 256-bit keys)
 * **Security & Preferences**: Jetpack Security Crypto (`EncryptedSharedPreferences`)
@@ -247,6 +265,13 @@ With an active emulator or connected USB device:
 
 ## Recent Improvements & Fixes
 
+* **Performance, Category Presets & Custom Icon Suite (v1.6.0)**:
+  * **Instant Vault Startup (<15ms)**: Decoupled initial password list rendering from heavy Keystore cryptographic audits, eliminating startup lag completely for vaults containing 200+ credentials.
+  * **In-Memory Session Decryption Cache**: Thread-safe in-memory cache reuses decrypted values during audit passes to avoid repeated Keystore hardware overhead, automatically flushed from memory on app lock or session timeout.
+  * **Category Folder Presets**: Out-of-the-box standard category folders for both Passwords (7 presets) and API Keys (6 presets) with a dedicated one-tap "Load Presets" restoration tool in Category Manager.
+  * **Smart 1-Tap Category Suggestions**: Heuristic categorization engine proactively suggests relevant folders (e.g. Email & Accounts, AI & Chatbots, Payment Gateways) based on entry title, URL, or service name with instant 1-tap assignment.
+  * **Curated Custom Icon Picker**: Integrated Material Design icon library covering Developer & Cloud, Services & Web, Security & Devices, and General categories for custom visual credential identification.
+  * **Room Database v6**: Upgraded database schema with automated migration supporting custom icon tags and category presets.
 * **Configurable Vault Sorting & Segregated Categories (v1.5.0)**:
   * **Configurable Vault Sorting**: 6 sort options (Title A–Z, Title Z–A, Date Added Newest/Oldest, Recently Updated, Custom Order) with persistent preferences.
   * **Keep Favorites on Top & Section Headers**: Starred credentials pin to a dedicated `FAVORITES` group, followed by `ALL PASSWORDS` or `ALL API KEYS` with real-time count badges.

@@ -16,6 +16,7 @@ Welcome to **AIPOS Password Manager**, your offline, highly secure credentials v
 ## 2. Managing Passwords & API Keys
 
 - **Adding Credentials**: Tap the floating `+` button at the bottom right to add a password entry or API key.
+- **Custom Icon Selection**: Personalize passwords and API keys with curated Material icons spanning *Developer & Cloud*, *Services & Web*, *Security & Devices*, and *General* categories to easily distinguish services across vault lists, detail views, and home favorites.
 - **2FA TOTP Support**: Add your 2FA secret or scan a QR code using the built-in offline camera scanner. Live 6-digit TOTP codes generate automatically with a countdown timer.
 - **Copying Username & Passwords**: Tap the copy icon next to any entry. Credentials copied to the clipboard auto-clear after 30 seconds for safety.
 - **Favorite Pinning**: Tap the star icon on any credential card to mark it as a favorite. When "Keep Favorites on Top" is enabled, favorites stay pinned above regular entries.
@@ -52,23 +53,35 @@ AIPOS Password Manager provides flexible sorting preferences that persist across
 
 ---
 
-## 4. Category Management (Passwords & API Keys)
+## 4. Category Management & Folder Presets (Passwords & API Keys)
 
-Organize your digital credentials cleanly with dedicated, type-isolated categories.
+Organize your digital credentials cleanly with dedicated, type-isolated categories and instant folder presets.
 
 1. **Independent Category Types**:
-   - Categories are strictly separated between **Passwords** (e.g. *Social, Banking, Work, Streaming*) and **API Keys** (e.g. *Cloud, AI Models, Payment Gateways*).
+   - Categories are strictly separated between **Passwords** (e.g. *Email & Accounts, Social Media, Financial & Banking, Work & Productivity*) and **API Keys** (e.g. *AI & Chatbots, Coding & Developer, Cloud Infrastructure, Payment Gateways*).
    - Category filter chips on the Passwords screen only display password categories; the API Keys screen only displays API key categories.
-2. **Accessing Category Manager**:
+2. **Out-of-the-Box Category Presets**:
+   - Fresh vaults are automatically pre-populated with standard category folders so you never start with an empty slate:
+     - **Passwords**: *Email & Accounts*, *Social Media*, *Financial & Banking*, *Work & Productivity*, *Entertainment & Media*, *Shopping & E-Commerce*, *Developer & Cloud*.
+     - **API Keys**: *AI & Chatbots*, *Coding & Developer*, *Cloud Infrastructure*, *Payment Gateways*, *Communication & SMS*, *Analytics & Monitoring*.
+   - In **Category Manager**, tap the **Load Presets** (`AutoAwesome`) icon in the top app bar at any time to restore default categories if you ever deleted them, without altering your custom categories.
+3. **Smart Category Folder Suggestions**:
+   - When adding or editing any password or API key, AIPOS proactively analyzes your entry's title, URL, and service name 100% offline.
+   - For example:
+     - Typing *"Google Account"*, *"Gmail"*, or *"Yahoo"* displays a 1-tap suggestion chip: `Folder: Email & Accounts`.
+     - Typing *"ChatGPT"*, *"OpenAI"*, *"Claude"*, or *"Gemini"* displays: `Folder: AI & Chatbots`.
+     - Typing *"Stripe"*, *"PayPal"*, or *"Bank"* displays the appropriate financial or payment category.
+   - Tapping the suggestion chip instantly assigns the folder, creating the category on the fly if it didn't exist yet.
+4. **Accessing Category Manager**:
    - Open **Settings > Security & Data > Manage Categories**.
-3. **Tabbed Category Hub**:
+5. **Tabbed Category Hub**:
    - Use the top tab bar to switch between **Passwords** and **API Keys**.
    - View all existing categories along with their custom color tags and active item counts.
-4. **Creating & Customizing Categories**:
+6. **Creating & Customizing Categories**:
    - Tap the floating `+` button in Category Manager.
    - Enter a unique name (duplicate names are checked case-insensitively).
    - Select from 10 curated Material Design color accents.
-5. **Editing & Deleting Categories**:
+7. **Editing & Deleting Categories**:
    - Tap the edit icon to rename a category or adjust its color accent.
    - Tap the delete icon to remove a category. Deleting a category will safely untag all associated credentials without deleting the credentials themselves.
    - If you delete a category that was actively filtered on the vault screen, the filter automatically resets to "All" to avoid an empty state.

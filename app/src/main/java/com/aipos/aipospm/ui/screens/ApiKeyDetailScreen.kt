@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.activity.compose.BackHandler
+import com.aipos.aipospm.ui.components.VaultIconRegistry
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -106,8 +107,8 @@ fun ApiKeyDetailScreen(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete API Key") },
-            text = { Text("Are you sure you want to delete \"${entry?.serviceName}\"? This cannot be undone.") },
+            title = { Text("Move to Trash?") },
+            text = { Text("Are you sure you want to move \"${entry?.serviceName}\" to the Trash? You can restore it within 30 days.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -119,7 +120,7 @@ fun ApiKeyDetailScreen(
                         showDeleteDialog = false
                     }
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text("Move to Trash", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -208,8 +209,9 @@ fun ApiKeyDetailScreen(
                             .padding(20.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val iconVector = VaultIconRegistry.getIcon(entry.icon) ?: Icons.Default.VpnKey
                         Icon(
-                            imageVector = Icons.Default.VpnKey,
+                            imageVector = iconVector,
                             contentDescription = null,
                             modifier = Modifier.size(32.dp),
                             tint = MaterialTheme.colorScheme.onSecondaryContainer
