@@ -18,5 +18,7 @@ data class ApiKeyEntry(
     val updatedAt: Long = System.currentTimeMillis(),
     @ColumnInfo(defaultValue = "0")
     val isDeleted: Boolean = false,
-    val deletedAt: Long? = null
+    val deletedAt: Long? = null,
+    @ColumnInfo(defaultValue = "0")
+    val customOrder: Int = 0
 )

@@ -18,13 +18,64 @@ Welcome to **AIPOS Password Manager**, your offline, highly secure credentials v
 - **Adding Credentials**: Tap the floating `+` button at the bottom right to add a password entry or API key.
 - **2FA TOTP Support**: Add your 2FA secret or scan a QR code using the built-in offline camera scanner. Live 6-digit TOTP codes generate automatically with a countdown timer.
 - **Copying Username & Passwords**: Tap the copy icon next to any entry. Credentials copied to the clipboard auto-clear after 30 seconds for safety.
+- **Favorite Pinning**: Tap the star icon on any credential card to mark it as a favorite. When "Keep Favorites on Top" is enabled, favorites stay pinned above regular entries.
 - **Swipe to Delete & Soft Deletes**: Swipe any credential card left to delete it, or tap the delete icon on the detail screen.
 - **Instant Undo**: Tap **Undo** on the bottom snackbar to immediately restore an entry to its original position.
 - **Trash & Recovery**: If not undone immediately, items are kept safely in the **Trash** for 30 days before permanent deletion.
 
 ---
 
-## 3. Trash & Recovery
+## 3. Vault Sorting & Custom Ordering
+
+AIPOS Password Manager provides flexible sorting preferences that persist across app launches for both Passwords and API Keys independently.
+
+1. **Accessing Sort Options**:
+   - Tap the **Sort** icon in the top app bar of either the **Passwords** or **API Keys** screen to open the **Sort & Order** bottom sheet.
+2. **Sorting Criteria**:
+   - **Title (A-Z)**: Alphabetical by title.
+   - **Title (Z-A)**: Reverse alphabetical by title.
+   - **Date Added (Newest First)**: Most recently created entries first.
+   - **Date Added (Oldest First)**: Earliest created entries first.
+   - **Recently Updated**: Credentials modified or viewed most recently.
+   - **Custom Order**: Full manual control over your vault listing order.
+3. **"Keep Favorites on Top" Toggle**:
+   - Located at the top of the Sort bottom sheet.
+   - When enabled, starred credentials are pinned to the top of the list in their own dedicated `FAVORITES` section.
+   - Below favorites, remaining entries appear under a distinct `ALL PASSWORDS` or `ALL API KEYS` section header with real-time item count badges.
+   - Both sections respect your chosen sort criterion.
+4. **Manual Custom Reordering**:
+   - Select **Custom Order** in the Sort bottom sheet.
+   - Each card in your vault will display interactive **Up** and **Down** arrow buttons.
+   - Tap an arrow to move any item one position up or down. Reordering operations are applied atomically to the local database.
+   - **Boundary Safety**: Starred favorites move exclusively within the favorites group; regular entries move exclusively within the regular group.
+   - **Filter Protection**: Reordering arrows are automatically hidden when searching or applying category filters to protect your custom global sequence from unintended changes.
+
+---
+
+## 4. Category Management (Passwords & API Keys)
+
+Organize your digital credentials cleanly with dedicated, type-isolated categories.
+
+1. **Independent Category Types**:
+   - Categories are strictly separated between **Passwords** (e.g. *Social, Banking, Work, Streaming*) and **API Keys** (e.g. *Cloud, AI Models, Payment Gateways*).
+   - Category filter chips on the Passwords screen only display password categories; the API Keys screen only displays API key categories.
+2. **Accessing Category Manager**:
+   - Open **Settings > Security & Data > Manage Categories**.
+3. **Tabbed Category Hub**:
+   - Use the top tab bar to switch between **Passwords** and **API Keys**.
+   - View all existing categories along with their custom color tags and active item counts.
+4. **Creating & Customizing Categories**:
+   - Tap the floating `+` button in Category Manager.
+   - Enter a unique name (duplicate names are checked case-insensitively).
+   - Select from 10 curated Material Design color accents.
+5. **Editing & Deleting Categories**:
+   - Tap the edit icon to rename a category or adjust its color accent.
+   - Tap the delete icon to remove a category. Deleting a category will safely untag all associated credentials without deleting the credentials themselves.
+   - If you delete a category that was actively filtered on the vault screen, the filter automatically resets to "All" to avoid an empty state.
+
+---
+
+## 5. Trash & Recovery
 
 Never worry about accidental deletions. AIPOS Password Manager features a built-in soft-delete and recovery system.
 
@@ -41,7 +92,7 @@ Never worry about accidental deletions. AIPOS Password Manager features a built-
 
 ---
 
-## 4. Vault Health, Compromised & Reused Passwords
+## 6. Vault Health, Compromised & Reused Passwords
 
 AIPOS Password Manager proactively audits your credentials 100% offline to keep your digital identity secure.
 
@@ -64,7 +115,7 @@ AIPOS Password Manager proactively audits your credentials 100% offline to keep 
 
 ---
 
-## 5. Screen Privacy & Security Settings
+## 7. Screen Privacy & Security Settings
 
 1. **Screen Privacy (`FLAG_SECURE`)**:
    - Located in **Settings > Security > Screen Privacy**.
@@ -76,7 +127,7 @@ AIPOS Password Manager proactively audits your credentials 100% offline to keep 
 
 ---
 
-## 6. Android System Autofill
+## 8. Android System Autofill
 
 Fill usernames and passwords into any mobile application or browser with zero manual typing or clipboard copying.
 
@@ -91,14 +142,14 @@ Fill usernames and passwords into any mobile application or browser with zero ma
    - Tap the suggestion:
      - If Biometric Unlock is enabled, touch the fingerprint sensor or look at the camera.
      - Alternatively, enter your Master Password.
-   - AIPOS securely decrypts the credentials and fills the username and password fields instantly.
+     - AIPOS securely decrypts the credentials and fills the username and password fields instantly.
 3. **Searching Vault on the Fly**:
    - If an app is not automatically recognized, tap **"Search AIPOS Vault..."** in the autofill dropdown.
    - Unlock with biometrics/master password and search for the desired entry to fill it.
 
 ---
 
-## 7. Encrypted Backups & CSV Imports
+## 9. Encrypted Backups & CSV Imports
 
 - **Encrypted JSON Backup**:
   - Export your vault data to an encrypted backup file using a custom backup password.

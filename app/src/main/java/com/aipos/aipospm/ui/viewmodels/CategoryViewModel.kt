@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+import com.aipos.aipospm.data.CategoryType
+
 /**
  * ViewModel for managing custom categories/folders.
  */
@@ -28,11 +30,29 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
             initialValue = emptyList()
         )
 
-    fun addCategory(name: String) {
+    val passwordCategories: StateFlow<List<Category>> = categoryDao.getCategoriesByType(CategoryType.PASSWORD.name)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val apiKeyCategories: StateFlow<List<Category>> = categoryDao.getCategoriesByType(CategoryType.API_KEY.name)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    fun addCategory(name: String, type: CategoryType = CategoryType.PASSWORD) {
         viewModelScope.launch {
             val trimmedName = name.trim()
             if (trimmedName.isNotEmpty()) {
-                categoryDao.insertCategory(Category(name = trimmedName))
+                val existing = categoryDao.getCategoriesByTypeSync(type.name)
+                if (existing.any { it.name.equals(trimmedName, ignoreCase = true) }) {
+                    return@launch
+                }
+                categoryDao.insertCategory(Category(name = trimmedName, type = type.name))
             }
         }
     }
@@ -40,7 +60,11 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
     fun renameCategory(category: Category, newName: String) {
         viewModelScope.launch {
             val trimmedName = newName.trim()
-            if (trimmedName.isNotEmpty()) {
+            if (trimmedName.isNotEmpty() && trimmedName != category.name) {
+                val existing = categoryDao.getCategoriesByTypeSync(category.type)
+                if (existing.any { it.id != category.id && it.name.equals(trimmedName, ignoreCase = true) }) {
+                    return@launch
+                }
                 categoryDao.updateCategory(category.copy(name = trimmedName))
             }
         }

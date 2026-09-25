@@ -34,7 +34,7 @@
   <p>
     <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin Version" /></a>
     <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-SDK%2035%2B-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android SDK" /></a>
-    <a href="https://github.com/gininaba/AIPOSPasswordManager/releases"><img src="https://img.shields.io/badge/Release-v1.4.0-blue?style=flat-square" alt="Latest Release" /></a>
+    <a href="https://github.com/gininaba/AIPOSPasswordManager/releases"><img src="https://img.shields.io/badge/Release-v1.5.0-blue?style=flat-square" alt="Latest Release" /></a>
     <a href="https://f-droid.org/packages/com.aipos.aipospm/"><img src="https://img.shields.io/f-droid/v/com.aipos.aipospm?style=flat-square&logo=f-droid&logoColor=white" alt="F-Droid" /></a>
     <a href="https://github.com/gininaba/AIPOSPasswordManager"><img src="https://img.shields.io/badge/Network-100%25%20Offline-success?style=flat-square" alt="100% Offline" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License" /></a>
@@ -56,6 +56,17 @@
 
 ## Features
 
+* **Configurable Vault Sorting & Custom Ordering**:
+  * **6 Sort Options**: Name (A–Z), Name (Z–A), Recently Updated, Date Created (Newest), Date Created (Oldest), and Custom Order.
+  * **Favorites Pinning**: Optional "Keep Favorites on Top" toggle pins starred entries to the top while preserving primary sorting within sections.
+  * **Visual Section Headers**: Distinct headers (`FAVORITES` and `ALL PASSWORDS`) with item count badges visually demarcate pinned favorites from regular vault entries.
+  * **Manual Custom Reordering**: Reorder items smoothly using Up/Down arrow buttons with Compose list animations (`animateItem()`) in Custom Order mode.
+  * **State & Filter Safety**: Reordering updates are executed atomically via SQLite transactions (`withTransaction`), and reorder controls auto-hide during active searches/filters to prevent order corruption.
+* **Segregated Category Management (Passwords & API Keys)**:
+  * **Independent Category Spaces**: Separate category pools for Passwords and API Keys prevent cross-contamination.
+  * **Tabbed Category Manager**: Manage categories via a dedicated tabbed screen (`[ Passwords ]  [ API Keys ]`) with category count badges, in-place renaming, and cascading reference clearing.
+  * **Duplicate Name Prevention**: Enforces case-insensitive uniqueness within each category type.
+  * **Type-Filtered Chips & Dropdowns**: Vault list filter chips and credential creation dropdowns only display categories relevant to the active vault section.
 * **Dual Vault Support**: Seamlessly manage credentials (passwords, usernames, URLs, notes) and API keys with a tailored developer experience.
 * **Native Android Autofill Service**: Autofill usernames and passwords directly into Android applications and web browsers (Chrome, Firefox, Brave) via Android's native Autofill Framework.
   * **Biometric & Master Password Gate**: Credentials are never decrypted or exposed to calling apps without explicit biometric or master password authentication.
@@ -106,7 +117,7 @@ Comprehensive technical, security, and usage documentation is available in the `
 
 ## Architecture
 
-The application is built on modern Android development practices using **Jetpack Compose**, **Room Database (v4)**, and a **Model-View-ViewModel (MVVM)** architecture pattern.
+The application is built on modern Android development practices using **Jetpack Compose**, **Room Database (v5)**, and a **Model-View-ViewModel (MVVM)** architecture pattern.
 
 ```mermaid
 graph TB
@@ -114,16 +125,18 @@ graph TB
         MA["MainActivity — FLAG_SECURE Controller"]
         NAV["NavHost / NavGraph"]
         HS["HomeScreen — Vault Health Dashboard"]
-        PLS["PasswordListScreen — Filters & Badges"]
-        KLS["ApiKeyListScreen"]
+        PLS["PasswordListScreen — Filters, Sort & Badges"]
+        KLS["ApiKeyListScreen — Filters & Sort"]
+        CMS["CategoryManagerScreen — Tabbed Management"]
         TS["TrashScreen — Soft Delete & Recovery"]
         PDS["PasswordDetailScreen"]
         AS["AuthScreen"]
     end
 
     subgraph ViewModel_Layer["ViewModel Layer"]
-        PVM["PasswordViewModel — Audit & Soft Deletes"]
-        KVM["ApiKeyViewModel — Soft Deletes"]
+        PVM["PasswordViewModel — Audit, Sort & Soft Deletes"]
+        KVM["ApiKeyViewModel — Sort & Soft Deletes"]
+        CVM["CategoryViewModel — Type-Segregated Categories"]
         MVM["MainViewModel"]
         AVM["AuthViewModel — Privacy & Session"]
     end
@@ -144,17 +157,19 @@ graph TB
         ASP["AutofillStructureParser — AssistStructure Heuristics"]
     end
 
-    subgraph Data_Layer["Data Layer — Room Database v4"]
-        DB[("AppDatabase — AutoMigration v3 to v4")]
-        PD["PasswordDao — Active & Trash Queries"]
-        AD["ApiKeyDao — Active & Trash Queries"]
-        CD["CategoryDao"]
+    subgraph Data_Layer["Data Layer — Room Database v5"]
+        DB[("AppDatabase — AutoMigration v4 to v5")]
+        PD["PasswordDao — Active, Trash & Order Queries"]
+        AD["ApiKeyDao — Active, Trash & Order Queries"]
+        CD["CategoryDao — Type-Segregated Queries"]
+        VPM["VaultPreferencesManager — Sorting & Pinning"]
     end
 
     MA --> NAV
-    NAV --> HS & PLS & KLS & TS & PDS & AS
+    NAV --> HS & PLS & KLS & CMS & TS & PDS & AS
     HS & PLS & TS & PDS --> PVM
     KLS & TS --> KVM
+    CMS --> CVM
     AS --> MVM & AVM
 
     AAS --> ASP & AM & AAA
@@ -162,7 +177,8 @@ graph TB
     AAA --> CM & MPM & PD
 
     PVM & KVM --> CM
-    PVM & KVM --> PD & AD & CD
+    PVM & KVM & CVM --> PD & AD & CD
+    PVM & KVM --> VPM
     PVM --> PBC
     PVM --> TH
     PVM & KVM --> CH
@@ -231,6 +247,13 @@ With an active emulator or connected USB device:
 
 ## Recent Improvements & Fixes
 
+* **Configurable Vault Sorting & Segregated Categories (v1.5.0)**:
+  * **Configurable Vault Sorting**: 6 sort options (Title A–Z, Title Z–A, Date Added Newest/Oldest, Recently Updated, Custom Order) with persistent preferences.
+  * **Keep Favorites on Top & Section Headers**: Starred credentials pin to a dedicated `FAVORITES` group, followed by `ALL PASSWORDS` or `ALL API KEYS` with real-time count badges.
+  * **Manual Custom Reordering**: Reorder credentials smoothly via interactive Up/Down buttons with list animations (`animateItem()`), bounded within favorite and regular groups.
+  * **Segregated Category Spaces**: Independent category pools for Passwords and API Keys with type-isolated filter chips and dropdowns.
+  * **Tabbed Category Hub**: Dedicated manager screen with in-place renaming, color customization, item count badges, and cascading reference clearing.
+  * **Room Database v5**: Upgraded database with automated migration supporting per-item custom ordering and type-segregated categories.
 * **Advanced Privacy, Trash & Autofill Ecosystem (v1.4.0)**:
   * **Native Android Autofill Service**: Built-in `AutofillService` supporting system-wide credential autofill in native apps and mobile browsers. Encrypted credentials remain gated behind biometric or master password authentication via `AutofillAuthActivity`.
   * **Trash / Soft-Delete & Recovery**: Credentials are moved into a 30-day soft-delete repository before permanent removal. Dedicated Trash screen with dual tabs, remaining-day countdown indicators, single-tap restore, per-item permanent deletion, and empty trash commands. Database upgraded to version 4 with Room AutoMigration.

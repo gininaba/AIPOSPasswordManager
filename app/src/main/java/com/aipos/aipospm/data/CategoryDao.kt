@@ -17,6 +17,12 @@ interface CategoryDao {
     @Query("SELECT * FROM categories ORDER BY name ASC")
     suspend fun getAllCategoriesSync(): List<Category>
 
+    @Query("SELECT * FROM categories WHERE type = :type ORDER BY name ASC")
+    fun getCategoriesByType(type: String): Flow<List<Category>>
+
+    @Query("SELECT * FROM categories WHERE type = :type ORDER BY name ASC")
+    suspend fun getCategoriesByTypeSync(type: String): List<Category>
+
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun getCategoryById(id: Int): Category?
 

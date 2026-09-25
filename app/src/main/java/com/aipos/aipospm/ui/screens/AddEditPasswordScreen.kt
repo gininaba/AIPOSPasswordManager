@@ -83,7 +83,7 @@ fun AddEditPasswordScreen(
     onNavigateToGenerator: () -> Unit
 ) {
     val uiState by passwordViewModel.uiState.collectAsStateWithLifecycle()
-    val categories by categoryViewModel.categories.collectAsStateWithLifecycle()
+    val categories by categoryViewModel.passwordCategories.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var title by rememberSaveable { mutableStateOf("") }
@@ -186,7 +186,7 @@ fun AddEditPasswordScreen(
                 TextButton(
                     onClick = {
                         if (newCatName.trim().isNotEmpty()) {
-                            categoryViewModel.addCategory(newCatName)
+                            categoryViewModel.addCategory(newCatName, com.aipos.aipospm.data.CategoryType.PASSWORD)
                             newCatName = ""
                         }
                         showCreateCategoryDialog = false

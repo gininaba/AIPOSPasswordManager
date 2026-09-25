@@ -63,6 +63,14 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.aipos.aipospm.data.SortOption
+import com.aipos.aipospm.ui.components.SortBottomSheet
+import com.aipos.aipospm.ui.components.VaultSectionHeader
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -159,7 +167,7 @@ fun PasswordListContent(
     modifier: Modifier = Modifier
 ) {
     val passwords by passwordViewModel.passwords.collectAsStateWithLifecycle()
-    val categories by categoryViewModel.categories.collectAsStateWithLifecycle()
+    val categories by categoryViewModel.passwordCategories.collectAsStateWithLifecycle()
     val selectedCategoryIdFilter by passwordViewModel.selectedCategoryIdFilter.collectAsStateWithLifecycle()
     val showCompromisedOnlyFilter by passwordViewModel.showCompromisedOnlyFilter.collectAsStateWithLifecycle()
     val showReusedOnlyFilter by passwordViewModel.showReusedOnlyFilter.collectAsStateWithLifecycle()
@@ -168,70 +176,110 @@ fun PasswordListContent(
     val reusedPasswordIds by passwordViewModel.reusedPasswordIds.collectAsStateWithLifecycle()
     val compromisedPasswordIds by passwordViewModel.compromisedPasswordIds.collectAsStateWithLifecycle()
     val searchQuery by passwordViewModel.searchQuery.collectAsStateWithLifecycle()
+    val sortOption by passwordViewModel.sortOption.collectAsStateWithLifecycle()
+    val pinFavorites by passwordViewModel.pinFavorites.collectAsStateWithLifecycle()
+    var showSortSheet by rememberSaveable { mutableStateOf(false) }
+    val sortSheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    if (showSortSheet) {
+        SortBottomSheet(
+            sheetState = sortSheetState,
+            currentSortOption = sortOption,
+            pinFavorites = pinFavorites,
+            onSortOptionSelected = { passwordViewModel.setSortOption(it) },
+            onPinFavoritesToggled = { passwordViewModel.setPinFavorites(it) },
+            onDismissRequest = { showSortSheet = false }
+        )
+    }
 
     Box(modifier = modifier) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Custom Search Bar
-            Card(
+            // Search Bar & Sort Button Row
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                )
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = { passwordViewModel.updateSearchQuery(it) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                        color = MaterialTheme.colorScheme.onSurface
-                    ),
-                    singleLine = true,
-                    decorationBox = { innerTextField ->
-                        Row(
-                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Search,
-                                contentDescription = "Search",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Box(modifier = Modifier.weight(1f)) {
-                                if (searchQuery.isEmpty()) {
-                                    Text(
-                                        text = "Search passwords...",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                    )
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    )
+                ) {
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { passwordViewModel.updateSearchQuery(it) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        singleLine = true,
+                        decorationBox = { innerTextField ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Search",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Box(modifier = Modifier.weight(1f)) {
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search passwords...",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                    innerTextField()
                                 }
-                                innerTextField()
-                            }
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(
-                                    onClick = { passwordViewModel.updateSearchQuery("") },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Clear,
-                                        contentDescription = "Clear",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = { passwordViewModel.updateSearchQuery("") },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = "Clear",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
-                )
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(
+                    onClick = { showSortSheet = true },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            if (sortOption != SortOption.UPDATED_DESC || pinFavorites)
+                                MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        )
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Sort,
+                        contentDescription = "Sort Passwords",
+                        tint = if (sortOption != SortOption.UPDATED_DESC || pinFavorites)
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             // Category & Security filter chips
@@ -404,79 +452,119 @@ fun PasswordListContent(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(
+                    itemsIndexed(
                         items = passwords,
-                        key = { it.id },
-                        contentType = { "password_item" }
-                    ) { entry ->
-                        @Suppress("DEPRECATION")
-                        val dismissState = rememberSwipeToDismissBoxState(
-                            positionalThreshold = { distance -> distance * 0.5f },
-                            confirmValueChange = { dismissValue ->
-                                if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                                    passwordViewModel.deletePassword(entry)
-                                    scope.launch {
-                                        val result = snackbarHostState.showSnackbar(
-                                            message = "Password '${entry.title}' deleted",
-                                            actionLabel = "Undo"
-                                        )
-                                        if (result == SnackbarResult.ActionPerformed) {
-                                            passwordViewModel.restorePassword(entry)
-                                        }
-                                    }
-                                    true
-                                } else false
-                            }
-                        )
+                        key = { _, it -> it.id },
+                        contentType = { _, _ -> "password_item" }
+                    ) { index, entry ->
+                        val hasBoth = pinFavorites && passwords.any { it.isFavorite } && passwords.any { !it.isFavorite }
+                        val isFirstFavorite = hasBoth && index == 0 && entry.isFavorite
+                        val isFirstNonFavorite = hasBoth && !entry.isFavorite && (index == 0 || passwords[index - 1].isFavorite)
 
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            modifier = Modifier.animateItem(),
-                            backgroundContent = {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(vertical = 4.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                colors = listOf(
-                                                    Color.Transparent,
-                                                    DangerRed.copy(alpha = 0.15f)
-                                                )
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (isFirstFavorite) {
+                                VaultSectionHeader(
+                                    title = "Favorites",
+                                    count = passwords.count { it.isFavorite },
+                                    icon = Icons.Default.Star,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            } else if (isFirstNonFavorite) {
+                                VaultSectionHeader(
+                                    title = "All Passwords",
+                                    count = passwords.count { !it.isFavorite },
+                                    icon = Icons.Default.Password,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            @Suppress("DEPRECATION")
+                            val dismissState = rememberSwipeToDismissBoxState(
+                                positionalThreshold = { distance -> distance * 0.5f },
+                                confirmValueChange = { dismissValue ->
+                                    if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
+                                        passwordViewModel.deletePassword(entry)
+                                        scope.launch {
+                                            val result = snackbarHostState.showSnackbar(
+                                                message = "Password '${entry.title}' deleted",
+                                                actionLabel = "Undo"
                                             )
-                                        ),
-                                    contentAlignment = Alignment.CenterEnd
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete",
-                                        tint = DangerRed,
-                                        modifier = Modifier
-                                            .padding(end = 16.dp)
-                                            .size(24.dp)
-                                    )
-                                }
-                            },
-                            enableDismissFromStartToEnd = false,
-                            enableDismissFromEndToStart = true
-                        ) {
-                            val isBreached = entry.id in compromisedPasswordIds
-                            val isReused = entry.id in reusedPasswordIds
-                            PasswordCard(
-                                entry = entry,
-                                categoryName = categoryMap[entry.categoryId]?.name,
-                                isBreached = isBreached,
-                                isReused = isReused,
-                                onClick = { onNavigateToDetail(entry.id) },
-                                onFavoriteClick = { passwordViewModel.toggleFavorite(entry) },
-                                onCopyUsername = {
-                                    ClipboardHelper.copyAndScheduleClear(context, "Username", entry.username)
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Username copied (clears in 30s)")
-                                    }
+                                            if (result == SnackbarResult.ActionPerformed) {
+                                                passwordViewModel.restorePassword(entry)
+                                            }
+                                        }
+                                        true
+                                    } else false
                                 }
                             )
+
+                            SwipeToDismissBox(
+                                state = dismissState,
+                                modifier = Modifier.animateItem(),
+                                backgroundContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(vertical = 4.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    colors = listOf(
+                                                        Color.Transparent,
+                                                        DangerRed.copy(alpha = 0.15f)
+                                                    )
+                                                )
+                                            ),
+                                        contentAlignment = Alignment.CenterEnd
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete",
+                                            tint = DangerRed,
+                                            modifier = Modifier
+                                                .padding(end = 16.dp)
+                                                .size(24.dp)
+                                        )
+                                    }
+                                },
+                                enableDismissFromStartToEnd = false,
+                                enableDismissFromEndToStart = true
+                            ) {
+                                val isBreached = entry.id in compromisedPasswordIds
+                                val isReused = entry.id in reusedPasswordIds
+                                val isCustomReorderEnabled = sortOption == SortOption.CUSTOM &&
+                                    searchQuery.isEmpty() &&
+                                    selectedCategoryIdFilter == null &&
+                                    !showCompromisedOnlyFilter &&
+                                    !showReusedOnlyFilter
+
+                                val canMoveUp = isCustomReorderEnabled && index > 0 &&
+                                    (!pinFavorites || entry.isFavorite == passwords[index - 1].isFavorite)
+
+                                val canMoveDown = isCustomReorderEnabled && index < passwords.size - 1 &&
+                                    (!pinFavorites || entry.isFavorite == passwords[index + 1].isFavorite)
+
+                                PasswordCard(
+                                    entry = entry,
+                                    categoryName = categoryMap[entry.categoryId]?.name,
+                                    isBreached = isBreached,
+                                    isReused = isReused,
+                                    onClick = { onNavigateToDetail(entry.id) },
+                                    onFavoriteClick = { passwordViewModel.toggleFavorite(entry) },
+                                    onCopyUsername = {
+                                        ClipboardHelper.copyAndScheduleClear(context, "Username", entry.username)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Username copied (clears in 30s)")
+                                        }
+                                    },
+                                    onMoveUp = if (canMoveUp) {
+                                        { passwordViewModel.movePassword(passwords, index, -1) }
+                                    } else null,
+                                    onMoveDown = if (canMoveDown) {
+                                        { passwordViewModel.movePassword(passwords, index, 1) }
+                                    } else null
+                                )
+                            }
                         }
                     }
                 }
@@ -503,7 +591,9 @@ private fun PasswordCard(
     isReused: Boolean = false,
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit,
-    onCopyUsername: () -> Unit
+    onCopyUsername: () -> Unit,
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null
 ) {
     val barColor = when {
         isBreached -> DangerRed
@@ -715,6 +805,38 @@ private fun PasswordCard(
                         tint = if (entry.isFavorite) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.outline
                     )
+                }
+
+                if (onMoveUp != null || onMoveDown != null) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(start = 2.dp)
+                    ) {
+                        IconButton(
+                            onClick = { onMoveUp?.invoke() },
+                            enabled = onMoveUp != null,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowUp,
+                                contentDescription = "Move up",
+                                modifier = Modifier.size(18.dp),
+                                tint = if (onMoveUp != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            )
+                        }
+                        IconButton(
+                            onClick = { onMoveDown?.invoke() },
+                            enabled = onMoveDown != null,
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Move down",
+                                modifier = Modifier.size(18.dp),
+                                tint = if (onMoveDown != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            )
+                        }
+                    }
                 }
             }
         }

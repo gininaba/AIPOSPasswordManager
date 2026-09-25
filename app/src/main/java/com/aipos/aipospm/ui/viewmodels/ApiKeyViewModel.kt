@@ -3,8 +3,12 @@ package com.aipos.aipospm.ui.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.room.withTransaction
 import com.aipos.aipospm.data.ApiKeyEntry
 import com.aipos.aipospm.data.AppDatabase
+import com.aipos.aipospm.data.CategoryType
+import com.aipos.aipospm.data.SortOption
+import com.aipos.aipospm.data.VaultPreferencesManager
 import com.aipos.aipospm.security.CryptoManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -16,6 +20,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -32,6 +37,13 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     private val db = AppDatabase.getInstance(application)
     private val apiKeyDao = db.apiKeyDao()
     private val cryptoManager = CryptoManager()
+    private val vaultPrefs = VaultPreferencesManager.getInstance(application)
+
+    private val _sortOption = MutableStateFlow(vaultPrefs.getApiKeySortOption())
+    val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
+
+    private val _pinFavorites = MutableStateFlow(vaultPrefs.getApiKeyPinFavorites())
+    val pinFavorites: StateFlow<Boolean> = _pinFavorites.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -39,26 +51,97 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     private val _selectedCategoryIdFilter = MutableStateFlow<Int?>(null)
     val selectedCategoryIdFilter: StateFlow<Int?> = _selectedCategoryIdFilter.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            db.categoryDao().getCategoriesByType(CategoryType.API_KEY.name).collect { cats ->
+                val selected = _selectedCategoryIdFilter.value
+                if (selected != null && cats.none { it.id == selected }) {
+                    _selectedCategoryIdFilter.value = null
+                }
+            }
+        }
+    }
+
+    private data class ApiKeyFilterSortParams(
+        val query: String,
+        val categoryId: Int?,
+        val sort: SortOption,
+        val pinFavorites: Boolean
+    )
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val apiKeys: StateFlow<List<ApiKeyEntry>> = combine(
         _searchQuery,
-        _selectedCategoryIdFilter
-    ) { query, categoryId ->
-        Pair(query, categoryId)
-    }.flatMapLatest { (query, _) ->
-        if (query.isBlank()) {
+        _selectedCategoryIdFilter,
+        _sortOption,
+        _pinFavorites
+    ) { query, categoryId, sort, pinFav ->
+        ApiKeyFilterSortParams(query, categoryId, sort, pinFav)
+    }.flatMapLatest { params ->
+        val baseFlow = if (params.query.isBlank()) {
             apiKeyDao.getAllApiKeys()
         } else {
-            apiKeyDao.searchApiKeys(query)
+            apiKeyDao.searchApiKeys(params.query)
         }
-    }.combine(_selectedCategoryIdFilter) { list, categoryId ->
-        if (categoryId == null) {
-            list
-        } else {
-            list.filter { it.categoryId == categoryId }
+        baseFlow.map { list ->
+            val filtered = if (params.categoryId == null) {
+                list
+            } else {
+                list.filter { it.categoryId == params.categoryId }
+            }
+            sortApiKeyList(filtered, params.sort, params.pinFavorites)
         }
     }.flowOn(Dispatchers.Default)
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun sortApiKeyList(list: List<ApiKeyEntry>, sort: SortOption, pinFavorites: Boolean): List<ApiKeyEntry> {
+        val baseComparator: Comparator<ApiKeyEntry> = when (sort) {
+            SortOption.NAME_ASC -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.serviceName }
+            SortOption.NAME_DESC -> compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.serviceName }
+            SortOption.UPDATED_DESC -> compareByDescending { it.updatedAt }
+            SortOption.CREATED_DESC -> compareByDescending { it.createdAt }
+            SortOption.CREATED_ASC -> compareBy { it.createdAt }
+            SortOption.CUSTOM -> compareBy<ApiKeyEntry> { it.customOrder }.thenByDescending { it.updatedAt }
+        }
+        return if (pinFavorites) {
+            list.sortedWith(compareByDescending<ApiKeyEntry> { it.isFavorite }.then(baseComparator))
+        } else {
+            list.sortedWith(baseComparator)
+        }
+    }
+
+    fun setSortOption(option: SortOption) {
+        _sortOption.value = option
+        vaultPrefs.setApiKeySortOption(option)
+    }
+
+    fun setPinFavorites(pin: Boolean) {
+        _pinFavorites.value = pin
+        vaultPrefs.setApiKeyPinFavorites(pin)
+    }
+
+    fun reorderApiKeys(items: List<ApiKeyEntry>, fromIndex: Int, toIndex: Int) {
+        if (fromIndex == toIndex || fromIndex !in items.indices || toIndex !in items.indices) return
+        val reordered = items.toMutableList()
+        val movedItem = reordered.removeAt(fromIndex)
+        reordered.add(toIndex, movedItem)
+        viewModelScope.launch(Dispatchers.IO) {
+            db.withTransaction {
+                reordered.forEachIndexed { index, entry ->
+                    if (entry.customOrder != index) {
+                        apiKeyDao.updateApiKeyOrder(entry.id, index)
+                    }
+                }
+            }
+        }
+    }
+
+    fun moveApiKey(items: List<ApiKeyEntry>, currentIndex: Int, direction: Int) {
+        val targetIndex = currentIndex + direction
+        if (currentIndex in items.indices && targetIndex in items.indices) {
+            reorderApiKeys(items, currentIndex, targetIndex)
+        }
+    }
 
     val apiKeyCount: StateFlow<Int> = apiKeyDao.getApiKeyCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)

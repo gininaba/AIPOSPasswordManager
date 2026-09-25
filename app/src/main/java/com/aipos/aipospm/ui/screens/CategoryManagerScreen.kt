@@ -43,8 +43,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Tab
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aipos.aipospm.data.Category
+import com.aipos.aipospm.data.CategoryType
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,8 +56,13 @@ fun CategoryManagerScreen(
     categoryViewModel: CategoryViewModel,
     onNavigateBack: () -> Unit
 ) {
-    val categories by categoryViewModel.categories.collectAsStateWithLifecycle()
+    val passwordCategories by categoryViewModel.passwordCategories.collectAsStateWithLifecycle()
+    val apiKeyCategories by categoryViewModel.apiKeyCategories.collectAsStateWithLifecycle()
+    var selectedType by rememberSaveable { mutableStateOf(CategoryType.PASSWORD) }
+
+    val currentCategories = if (selectedType == CategoryType.PASSWORD) passwordCategories else apiKeyCategories
     var newCategoryName by rememberSaveable { mutableStateOf("") }
+
     
     var categoryToRename by remember { mutableStateOf<Category?>(null) }
     var renameNewName by rememberSaveable(categoryToRename) { mutableStateOf(categoryToRename?.name ?: "") }
@@ -147,6 +155,24 @@ fun CategoryManagerScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
+            PrimaryTabRow(
+                selectedTabIndex = if (selectedType == CategoryType.PASSWORD) 0 else 1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+            ) {
+                Tab(
+                    selected = selectedType == CategoryType.PASSWORD,
+                    onClick = { selectedType = CategoryType.PASSWORD },
+                    text = { Text("Passwords (${passwordCategories.size})", fontWeight = FontWeight.SemiBold) }
+                )
+                Tab(
+                    selected = selectedType == CategoryType.API_KEY,
+                    onClick = { selectedType = CategoryType.API_KEY },
+                    text = { Text("API Keys (${apiKeyCategories.size})", fontWeight = FontWeight.SemiBold) }
+                )
+            }
+
             // Add new category card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -164,7 +190,7 @@ fun CategoryManagerScreen(
                     OutlinedTextField(
                         value = newCategoryName,
                         onValueChange = { newCategoryName = it },
-                        placeholder = { Text("Create new category...") },
+                        placeholder = { Text(if (selectedType == CategoryType.PASSWORD) "New password category..." else "New API key category...") },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
@@ -172,7 +198,7 @@ fun CategoryManagerScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     FilledTonalButton(
                         onClick = {
-                            categoryViewModel.addCategory(newCategoryName)
+                            categoryViewModel.addCategory(newCategoryName, selectedType)
                             newCategoryName = ""
                         },
                         enabled = newCategoryName.trim().isNotEmpty(),
@@ -193,7 +219,7 @@ fun CategoryManagerScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // List of categories
-            if (categories.isEmpty()) {
+            if (currentCategories.isEmpty()) {
                 Column(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -207,7 +233,7 @@ fun CategoryManagerScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "No custom categories created yet",
+                        text = if (selectedType == CategoryType.PASSWORD) "No password categories created yet" else "No API key categories created yet",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -217,7 +243,7 @@ fun CategoryManagerScreen(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(categories, key = { it.id }) { category ->
+                    items(currentCategories, key = { it.id }) { category ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),

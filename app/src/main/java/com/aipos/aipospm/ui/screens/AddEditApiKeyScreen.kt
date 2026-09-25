@@ -67,7 +67,7 @@ fun AddEditApiKeyScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by apiKeyViewModel.uiState.collectAsStateWithLifecycle()
-    val categories by categoryViewModel.categories.collectAsStateWithLifecycle()
+    val categories by categoryViewModel.apiKeyCategories.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     var serviceName by rememberSaveable { mutableStateOf("") }
@@ -134,7 +134,7 @@ fun AddEditApiKeyScreen(
                 TextButton(
                     onClick = {
                         if (newCatName.trim().isNotEmpty()) {
-                            categoryViewModel.addCategory(newCatName)
+                            categoryViewModel.addCategory(newCatName, com.aipos.aipospm.data.CategoryType.API_KEY)
                             newCatName = ""
                         }
                         showCreateCategoryDialog = false

@@ -68,4 +68,7 @@ interface ApiKeyDao {
 
     @Query("UPDATE api_keys SET categoryId = null WHERE categoryId = :categoryId")
     suspend fun clearCategoryRef(categoryId: Int)
+
+    @Query("UPDATE api_keys SET customOrder = :customOrder WHERE id = :id")
+    suspend fun updateApiKeyOrder(id: Int, customOrder: Int)
 }

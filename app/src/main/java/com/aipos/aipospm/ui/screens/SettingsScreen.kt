@@ -1023,7 +1023,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     InfoRow("App Name", "AIPOS Password Manager")
-                    InfoRow("Version", "1.4.0")
+                    InfoRow("Version", "1.5.0")
                     InfoRow("Developed by", "gininaba")
                     InfoRow("Security", "AES-256-GCM Encryption")
                     InfoRow("Storage", "Fully Offline (Local Only)")

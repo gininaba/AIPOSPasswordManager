@@ -71,4 +71,7 @@ interface PasswordDao {
 
     @Query("UPDATE passwords SET categoryId = null WHERE categoryId = :categoryId")
     suspend fun clearCategoryRef(categoryId: Int)
+
+    @Query("UPDATE passwords SET customOrder = :customOrder WHERE id = :id")
+    suspend fun updatePasswordOrder(id: Int, customOrder: Int)
 }

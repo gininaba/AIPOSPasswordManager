@@ -45,17 +45,19 @@ graph TB
         ASP[AutofillStructureParser — AssistStructure Heuristics]
     end
 
-    subgraph Data_Layer["Data Layer (Room Database v4)"]
-        DB[(AppDatabase — SQLite v4 with AutoMigration)]
-        PDAO[PasswordDao — Active & Trash Queries]
-        KDAO[ApiKeyDao — Active & Trash Queries]
-        CDAO[CategoryDao]
+    subgraph Data_Layer["Data Layer (Room Database v5)"]
+        DB[(AppDatabase — SQLite v5 with AutoMigration)]
+        PDAO[PasswordDao — Active, Trash & Order Queries]
+        KDAO[ApiKeyDao — Active, Trash & Order Queries]
+        CDAO[CategoryDao — Type-Segregated Queries]
+        VPM[VaultPreferencesManager — Sorting & Pinning]
     end
 
     MA --> NAV
-    NAV --> HS & PLS & KLS & TS & PDS & PGS & AS
+    NAV --> HS & PLS & KLS & CMS & TS & PDS & PGS & AS
     HS & PLS & TS & PDS & PGS --> PVM
     KLS & TS --> KVM
+    CMS --> CVM
     AS --> MVM & AVM
 
     AAS --> ASP & AM & AAA
@@ -63,7 +65,8 @@ graph TB
     AAA --> CM & MPM & PDAO
 
     PVM & KVM --> CM
-    PVM & KVM --> PDAO & KDAO & CDAO
+    PVM & KVM & CVM --> PDAO & KDAO & CDAO
+    PVM & KVM --> VPM
     PVM --> PBC
     PVM --> TH
     PVM & KVM --> CH
@@ -82,10 +85,13 @@ graph TB
 ### 3.1 UI Layer (`com.aipos.aipospm.ui`)
 - **`MainActivity.kt`**: Single-activity entry point. Configures window insets, Material 3 theme wrapper, biometric prompt handlers, dynamic `WindowManager.LayoutParams.FLAG_SECURE` window binding, and main Scaffold bottom navigation.
 - **`HomeScreen.kt`**: Vault Health dashboard featuring an animated circular score gauge, quick summary metrics, favorites carousel, and direct action banners for compromised (Red) and reused (Amber) entries.
-- **`PasswordListScreen.kt`**: Passwords list view with search, custom category chips, `Compromised (N)` and `Reused (N)` filter chips, swipe-to-delete gesture, and Scaffold FAB lifting over snackbars.
+- **`PasswordListScreen.kt`**: Passwords list view with search, type-specific category chips, sort modal bottom sheet, visual section headers (`FAVORITES` and `ALL PASSWORDS`), `Compromised (N)` and `Reused (N)` filter chips, swipe-to-delete gesture, and manual custom reordering.
+- **`ApiKeyListScreen.kt`**: Developer interface for API keys with notes, type-specific category filtering, sort bottom sheet, visual section headers, and manual custom reordering.
+- **`CategoryManagerScreen.kt`**: Tabbed category management screen (`[ Passwords ]  [ API Keys ]`) supporting type-isolated category creation, item count badges, in-place renaming, cascading reference clearing, and duplicate prevention.
 - **`TrashScreen.kt`**: Full-fledged soft-delete recovery center with dual tabs ("Passwords" & "API Keys"), 30-day auto-purge notices, countdown badges, individual restore/permanent delete, and empty trash actions.
-- **`ApiKeyListScreen.kt`**: Tailored developer interface for API keys with notes, category filtering, and swipe-to-delete.
 - **`PasswordDetailScreen.kt` & `ApiKeyDetailScreen.kt`**: Detail screens featuring inline 2FA TOTP live countdown rings, password visibility toggles, strength meters, and edit modals.
+- **`SortBottomSheet.kt`**: Material 3 bottom sheet providing 6 vault sort options and a "Keep Favorites on Top" toggle.
+- **`VaultSectionHeader.kt`**: Visual header component cleanly demarcating pinned favorites from regular vault entries with count badges.
 
 ### 3.2 Security Layer (`com.aipos.aipospm.security`)
 - **`CryptoManager.kt`**: Encrypts and decrypts string payloads using **AES-256-GCM** with 128-bit authentication tags and hardware-backed keys stored inside `AndroidKeyStore`.
@@ -95,9 +101,11 @@ graph TB
 - **`TotpHelper.kt`**: Computes time-based one-time passwords (RFC 6238) offline from Base32 secrets.
 
 ### 3.3 Data Layer (`com.aipos.aipospm.data`)
-- **`AppDatabase.kt`**: Room database singleton containing entities for `PasswordEntry`, `ApiKeyEntry`, and `CategoryEntity`. Database version 4 with `@AutoMigration(from = 3, to = 4)`.
-- **`PasswordEntry.kt` & `ApiKeyEntry.kt`**: Include `@ColumnInfo(defaultValue = "0") val isDeleted: Boolean` and `val deletedAt: Long?` to support non-destructive soft deletes.
-- **`PasswordDao.kt` & `ApiKeyDao.kt`**: Data access objects returning asynchronous Kotlin `Flow` pipelines. Active views filter on `WHERE isDeleted = 0`, while dedicated queries handle trash list, recovery, and 30-day cutoff auto-purges.
+- **`AppDatabase.kt`**: Room database singleton containing entities for `PasswordEntry`, `ApiKeyEntry`, and `Category`. Database version 5 with `@AutoMigration(from = 4, to = 5)`.
+- **`Category.kt`**: Category entity with `type: String` (`PASSWORD` vs `API_KEY`) and default value `'PASSWORD'` ensuring full backwards compatibility.
+- **`PasswordEntry.kt` & `ApiKeyEntry.kt`**: Support non-destructive soft deletes (`isDeleted`, `deletedAt`) and custom ordering (`customOrder: Int = 0`).
+- **`PasswordDao.kt` & `ApiKeyDao.kt`**: Data access objects returning reactive Kotlin `Flow` pipelines. Provide active filtering (`WHERE isDeleted = 0`), trash management, and atomic custom order updates (`updatePasswordOrder`, `updateApiKeyOrder`).
+- **`VaultPreferencesManager.kt`**: Manages persistent vault display configurations and sorting options (`SortOption`) in `SharedPreferences`.
 
 ### 3.4 Autofill Subsystem (`com.aipos.aipospm.autofill`)
 - **`AiposAutofillService.kt`**: Extends Android's `android.service.autofill.AutofillService` (API 26+). Intercepts system fill requests, invokes parser and matching pipelines, and constructs authentication-protected `Dataset` bundles.
@@ -114,6 +122,9 @@ graph TB
    - `PasswordViewModel` executes a single unified `vaultAudit` pipeline on `Dispatchers.Default` (debounced by 300ms) that evaluates both breached passwords and reused password duplicate sets in a single pass over active credentials.
 2. **Debounced Database Emissions**:
    - Room emissions are debounced (`.debounce(300L)`) to group rapid database insertions or bulk imports into a single Keystore evaluation sweep.
-3. **Recomposition Guarding**:
+3. **Atomic Batch Reordering with `withTransaction`**:
+   - When custom reordering is applied, all sequence updates execute within an atomic `db.withTransaction` block. This reduces disk I/O to a single SQLite commit and triggers Room table invalidation only once, preventing UI stutter.
+4. **Recomposition Guarding**:
    - Category color resolution (`getCategoryColors`) and ID-to-name mapping utilize `remember(categories)` inside `LazyColumn` items to prevent redundant lookup computations during scrolling.
+
 

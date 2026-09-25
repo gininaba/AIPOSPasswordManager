@@ -22,5 +22,7 @@ data class PasswordEntry(
     val totpIv: String? = null,
     @ColumnInfo(defaultValue = "0")
     val isDeleted: Boolean = false,
-    val deletedAt: Long? = null
+    val deletedAt: Long? = null,
+    @ColumnInfo(defaultValue = "0")
+    val customOrder: Int = 0
 )

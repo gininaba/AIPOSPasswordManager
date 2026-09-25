@@ -8,7 +8,10 @@ import androidx.room.withTransaction
 import com.aipos.aipospm.data.ApiKeyEntry
 import com.aipos.aipospm.data.AppDatabase
 import com.aipos.aipospm.data.Category
+import com.aipos.aipospm.data.CategoryType
 import com.aipos.aipospm.data.PasswordEntry
+import com.aipos.aipospm.data.SortOption
+import com.aipos.aipospm.data.VaultPreferencesManager
 import com.aipos.aipospm.security.BackupManager
 import com.aipos.aipospm.security.CryptoManager
 import com.aipos.aipospm.security.PasswordBreachChecker
@@ -40,7 +43,8 @@ data class BackupPayload(
 data class CategoryBackup(
     val id: Int?,
     val name: String?,
-    val createdAt: Long?
+    val createdAt: Long?,
+    val type: String? = null
 )
 
 data class PasswordBackup(
@@ -54,7 +58,8 @@ data class PasswordBackup(
     val isFavorite: Boolean?,
     val createdAt: Long?,
     val updatedAt: Long?,
-    val plaintextTotp: String? = null
+    val plaintextTotp: String? = null,
+    val customOrder: Int? = null
 )
 
 data class ApiKeyBackup(
@@ -65,7 +70,8 @@ data class ApiKeyBackup(
     val categoryId: Int?,
     val isFavorite: Boolean?,
     val createdAt: Long?,
-    val updatedAt: Long?
+    val updatedAt: Long?,
+    val customOrder: Int? = null
 )
 
 data class VaultAudit(
@@ -87,6 +93,13 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     private val db = AppDatabase.getInstance(application)
     private val passwordDao = db.passwordDao()
     private val cryptoManager = CryptoManager()
+    private val vaultPrefs = VaultPreferencesManager.getInstance(application)
+
+    private val _sortOption = MutableStateFlow(vaultPrefs.getPasswordSortOption())
+    val sortOption: StateFlow<SortOption> = _sortOption.asStateFlow()
+
+    private val _pinFavorites = MutableStateFlow(vaultPrefs.getPasswordPinFavorites())
+    val pinFavorites: StateFlow<Boolean> = _pinFavorites.asStateFlow()
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -94,6 +107,14 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
             // Auto-purge items in trash older than 30 days
             val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
             passwordDao.purgeOldDeletedPasswords(thirtyDaysAgo)
+        }
+        viewModelScope.launch {
+            db.categoryDao().getCategoriesByType(CategoryType.PASSWORD.name).collect { cats ->
+                val selected = _selectedCategoryIdFilter.value
+                if (selected != null && cats.none { it.id == selected }) {
+                    _selectedCategoryIdFilter.value = null
+                }
+            }
         }
     }
 
@@ -148,8 +169,17 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         .map { it.compromisedIds }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
 
+    private data class PasswordFilterSortParams(
+        val query: String,
+        val categoryId: Int?,
+        val compFilter: Pair<Boolean, Set<Int>>,
+        val reusedFilter: Pair<Boolean, Set<Int>>,
+        val sort: SortOption,
+        val pinFavorites: Boolean
+    )
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    val passwords: StateFlow<List<PasswordEntry>> = combine(
+    private val passwordFilterState = combine(
         _searchQuery,
         _selectedCategoryIdFilter,
         _showCompromisedOnlyFilter,
@@ -157,28 +187,92 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         vaultAudit
     ) { query, categoryId, compromisedOnly, reusedOnly, audit ->
         Triple(query, categoryId, Pair(compromisedOnly to audit.compromisedIds, reusedOnly to audit.reusedIds))
-    }.flatMapLatest { (query, categoryId, filterState) ->
-        val baseFlow = if (query.isBlank()) {
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val passwords: StateFlow<List<PasswordEntry>> = combine(
+        passwordFilterState,
+        _sortOption,
+        _pinFavorites
+    ) { (query, categoryId, filterPair), sort, pinFav ->
+        PasswordFilterSortParams(
+            query = query,
+            categoryId = categoryId,
+            compFilter = filterPair.first,
+            reusedFilter = filterPair.second,
+            sort = sort,
+            pinFavorites = pinFav
+        )
+    }.flatMapLatest { params ->
+        val baseFlow = if (params.query.isBlank()) {
             passwordDao.getAllPasswords()
         } else {
-            passwordDao.searchPasswords(query)
+            passwordDao.searchPasswords(params.query)
         }
         baseFlow.map { list ->
             var filtered = list
-            if (categoryId != null) {
-                filtered = filtered.filter { it.categoryId == categoryId }
+            if (params.categoryId != null) {
+                filtered = filtered.filter { it.categoryId == params.categoryId }
             }
-            val (compFilter, reusedFilter) = filterState
-            if (compFilter.first) {
-                filtered = filtered.filter { it.id in compFilter.second }
+            if (params.compFilter.first) {
+                filtered = filtered.filter { it.id in params.compFilter.second }
             }
-            if (reusedFilter.first) {
-                filtered = filtered.filter { it.id in reusedFilter.second }
+            if (params.reusedFilter.first) {
+                filtered = filtered.filter { it.id in params.reusedFilter.second }
             }
-            filtered
+            sortPasswordList(filtered, params.sort, params.pinFavorites)
         }
     }.flowOn(Dispatchers.Default)
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun sortPasswordList(list: List<PasswordEntry>, sort: SortOption, pinFavorites: Boolean): List<PasswordEntry> {
+        val baseComparator: Comparator<PasswordEntry> = when (sort) {
+            SortOption.NAME_ASC -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.title }
+            SortOption.NAME_DESC -> compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.title }
+            SortOption.UPDATED_DESC -> compareByDescending { it.updatedAt }
+            SortOption.CREATED_DESC -> compareByDescending { it.createdAt }
+            SortOption.CREATED_ASC -> compareBy { it.createdAt }
+            SortOption.CUSTOM -> compareBy<PasswordEntry> { it.customOrder }.thenByDescending { it.updatedAt }
+        }
+        return if (pinFavorites) {
+            list.sortedWith(compareByDescending<PasswordEntry> { it.isFavorite }.then(baseComparator))
+        } else {
+            list.sortedWith(baseComparator)
+        }
+    }
+
+    fun setSortOption(option: SortOption) {
+        _sortOption.value = option
+        vaultPrefs.setPasswordSortOption(option)
+    }
+
+    fun setPinFavorites(pin: Boolean) {
+        _pinFavorites.value = pin
+        vaultPrefs.setPasswordPinFavorites(pin)
+    }
+
+    fun reorderPasswords(items: List<PasswordEntry>, fromIndex: Int, toIndex: Int) {
+        if (fromIndex == toIndex || fromIndex !in items.indices || toIndex !in items.indices) return
+        val reordered = items.toMutableList()
+        val movedItem = reordered.removeAt(fromIndex)
+        reordered.add(toIndex, movedItem)
+        viewModelScope.launch(Dispatchers.IO) {
+            db.withTransaction {
+                reordered.forEachIndexed { index, entry ->
+                    if (entry.customOrder != index) {
+                        passwordDao.updatePasswordOrder(entry.id, index)
+                    }
+                }
+            }
+        }
+    }
+
+    fun movePassword(items: List<PasswordEntry>, currentIndex: Int, direction: Int) {
+        val targetIndex = currentIndex + direction
+        if (currentIndex in items.indices && targetIndex in items.indices) {
+            reorderPasswords(items, currentIndex, targetIndex)
+        }
+    }
 
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
@@ -300,7 +394,7 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                 // Step 2: Decrypt Keystore-encrypted passwords into plaintext for the backup on Dispatchers.Default.
                 val (categoriesBackup, passwordsBackup, apiKeysBackup) = withContext(Dispatchers.Default) {
                     val catBackup = categoriesList.map {
-                        CategoryBackup(it.id, it.name, it.createdAt)
+                        CategoryBackup(it.id, it.name, it.createdAt, it.type)
                     }
                     val pwBackup = passwordsList.map {
                         val plaintextTotp = if (it.encryptedTotpSecret != null && it.totpIv != null) {
@@ -317,7 +411,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             isFavorite = it.isFavorite,
                             createdAt = it.createdAt,
                             updatedAt = it.updatedAt,
-                            plaintextTotp = plaintextTotp
+                            plaintextTotp = plaintextTotp,
+                            customOrder = it.customOrder
                         )
                     }
                     val apiBackup = apiKeysList.map {
@@ -332,7 +427,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             categoryId = it.categoryId,
                             isFavorite = it.isFavorite,
                             createdAt = it.createdAt,
-                            updatedAt = it.updatedAt
+                            updatedAt = it.updatedAt,
+                            customOrder = it.customOrder
                         )
                     }
                     Triple(catBackup, pwBackup, apiBackup)
@@ -430,9 +526,10 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     val categoryIdMap = mutableMapOf<Int, Int>()
                     for (cat in payload.categories.orEmpty()) {
                         val name = cat.name ?: ""
+                        val catType = cat.type ?: CategoryType.PASSWORD.name
                         if (name.isNotEmpty()) {
                             val newId = db.categoryDao().insertCategory(
-                                Category(name = name, createdAt = cat.createdAt ?: System.currentTimeMillis())
+                                Category(name = name, type = catType, createdAt = cat.createdAt ?: System.currentTimeMillis())
                             ).toInt()
                             cat.id?.let { categoryIdMap[it] = newId }
                         }
@@ -452,7 +549,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             createdAt = entry.backup.createdAt ?: System.currentTimeMillis(),
                             updatedAt = entry.backup.updatedAt ?: System.currentTimeMillis(),
                             encryptedTotpSecret = entry.totpEnc,
-                            totpIv = entry.totpIv
+                            totpIv = entry.totpIv,
+                            customOrder = entry.backup.customOrder ?: 0
                         )
                     }
                     passwordDao.insertPasswords(passwordsToInsert)
@@ -467,7 +565,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             categoryId = k.categoryId?.let { categoryIdMap[it] },
                             isFavorite = k.isFavorite ?: false,
                             createdAt = k.createdAt ?: System.currentTimeMillis(),
-                            updatedAt = k.updatedAt ?: System.currentTimeMillis()
+                            updatedAt = k.updatedAt ?: System.currentTimeMillis(),
+                            customOrder = k.customOrder ?: 0
                         )
                     }
                     db.apiKeyDao().insertApiKeys(apiKeysToInsert)
@@ -535,7 +634,7 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 db.withTransaction {
-                    val existingCategories = db.categoryDao().getAllCategoriesSync()
+                    val existingCategories = db.categoryDao().getCategoriesByTypeSync(CategoryType.PASSWORD.name)
                     val categoryCache = existingCategories.associateBy { it.name.lowercase() }.toMutableMap()
 
                     val passwordsToInsert = mutableListOf<PasswordEntry>()
@@ -549,9 +648,9 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                                 categoryId = cachedCat.id
                             } else {
                                 val newCatId = db.categoryDao().insertCategory(
-                                    Category(name = catName)
+                                    Category(name = catName, type = CategoryType.PASSWORD.name)
                                 ).toInt()
-                                val newCat = Category(id = newCatId, name = catName)
+                                val newCat = Category(id = newCatId, name = catName, type = CategoryType.PASSWORD.name)
                                 categoryCache[catName.lowercase()] = newCat
                                 categoryId = newCatId
                             }
