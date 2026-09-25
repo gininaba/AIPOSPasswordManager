@@ -39,6 +39,7 @@
     <a href="https://f-droid.org/packages/com.aipos.aipospm/"><img src="https://img.shields.io/f-droid/v/com.aipos.aipospm?style=flat-square&logo=f-droid&logoColor=white" alt="F-Droid" /></a>
     <a href="https://github.com/gininaba/AIPOSPasswordManager"><img src="https://img.shields.io/badge/Network-100%25%20Offline-success?style=flat-square" alt="100% Offline" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License" /></a>
+    <a href="https://github.com/sponsors/gininaba"><img src="https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?style=flat-square&logo=github-sponsors&logoColor=white" alt="GitHub Sponsors" /></a>
     <a href="https://buymeacoffee.com/gininaba2"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Donate-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee" /></a>
   </p>
 
@@ -338,11 +339,15 @@ With an active emulator or connected USB device:
 
 ## Support
 
-If you enjoy using AIPOS Password Manager and would like to support its ongoing development, maintenance, and new features, consider buying me a coffee!
+If you enjoy using AIPOS Password Manager and would like to support its ongoing development, maintenance, and new features, consider sponsoring on GitHub or buying me a coffee!
 
 <div align="center">
+  <a href="https://github.com/sponsors/gininaba" target="_blank">
+    <img src="https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-EA4AAA?style=for-the-badge&logo=github-sponsors&logoColor=white" alt="GitHub Sponsors" height="40">
+  </a>
+  &nbsp;&nbsp;
   <a href="https://buymeacoffee.com/gininaba2" target="_blank">
-    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="40">
   </a>
 </div>
 
