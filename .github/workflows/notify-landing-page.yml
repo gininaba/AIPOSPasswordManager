@@ -1,0 +1,19 @@
+name: Notify Landing Page on Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify-landing-page:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Landing Page Update
+        run: |
+          echo "Sending repository_dispatch event to gininaba/aipospasswordmanager_landingpage..."
+          curl -s -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: Bearer ${{ secrets.LANDING_PAGE_DEPLOY_TOKEN }}" \
+            https://api.github.com/repos/gininaba/aipospasswordmanager_landingpage/dispatches \
+            -d '{"event_type":"app_release","client_payload":{"tag_name":"${{ github.event.release.tag_name }}"}}'
+          echo "Notification dispatched successfully!"
