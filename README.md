@@ -28,6 +28,7 @@
     <a href="docs/USER_GUIDE.md">User Guide</a> •
     <a href="docs/DEVELOPER_GUIDE.md">Developer Guide</a> •
     <a href="#getting-started">Installation</a> •
+    <a href="#support">Support</a> •
     <a href="#license">License</a>
   </p>
 
@@ -38,6 +39,7 @@
     <a href="https://f-droid.org/packages/com.aipos.aipospm/"><img src="https://img.shields.io/f-droid/v/com.aipos.aipospm?style=flat-square&logo=f-droid&logoColor=white" alt="F-Droid" /></a>
     <a href="https://github.com/gininaba/AIPOSPasswordManager"><img src="https://img.shields.io/badge/Network-100%25%20Offline-success?style=flat-square" alt="100% Offline" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License" /></a>
+    <a href="https://buymeacoffee.com/gininaba2"><img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Donate-FFDD00?style=flat-square&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee" /></a>
   </p>
 
 </div>
@@ -331,6 +333,18 @@ With an active emulator or connected USB device:
 | **Autofill Protection** | Authenticated Fill Intents | Decrypted credentials require biometric/master password authentication |
 | **Clipboard Security** | Auto-Clearing Clipboard | Scheduled 30-second clipboard wipe with timer rescheduling |
 | **Network Footprint** | None | 100% Offline with zero `INTERNET` permissions declared |
+
+---
+
+## Support
+
+If you enjoy using AIPOS Password Manager and would like to support its ongoing development, maintenance, and new features, consider buying me a coffee!
+
+<div align="center">
+  <a href="https://buymeacoffee.com/gininaba2" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
+  </a>
+</div>
 
 ---
 
