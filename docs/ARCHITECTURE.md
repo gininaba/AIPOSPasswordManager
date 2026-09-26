@@ -107,12 +107,12 @@ graph TB
 ### 3.2 Security Layer (`com.aipos.aipospm.security`)
 - **`CryptoManager.kt`**: Encrypts and decrypts string payloads using **AES-256-GCM** with 128-bit authentication tags and hardware-backed keys stored inside `AndroidKeyStore`.
 - **`MasterPasswordManager.kt`**: Hashes master passwords using **PBKDF2WithHmacSHA256** with 120,000 iterations and a 16-byte random salt. Also manages encrypted preferences including biometric preferences and `FLAG_SECURE` screen privacy toggle (`KEY_SCREEN_SECURITY_ENABLED`).
-- **`BackupManager.kt`**: Generates and parses encrypted JSON backups decoupled from hardware Keystore keys, utilizing a user-specified backup password derived via PBKDF2 (10,000 iterations) + AES-256-GCM.
+- **`BackupManager.kt`**: Generates and parses encrypted JSON backups decoupled from hardware Keystore keys, utilizing a user-specified backup password derived via PBKDF2 (100,000 iterations) + AES-256-GCM.
 - **`PasswordBreachChecker.kt`**: Evaluates passwords locally against a bundled dataset of breached passwords without any network requests.
 - **`TotpHelper.kt`**: Computes time-based one-time passwords (RFC 6238) offline from Base32 secrets.
 
 ### 3.3 Data Layer (`com.aipos.aipospm.data`)
-- **`AppDatabase.kt`**: Room database singleton containing entities for `PasswordEntry`, `ApiKeyEntry`, and `Category`. Database version 6 supporting custom icon identification and type-segregated categories.
+- **`AppDatabase.kt`**: Room database singleton containing entities for `PasswordEntry`, `ApiKeyEntry`, and `Category`. Database version 6 supporting custom icon identification and type-segregated categories, with comprehensive automated migration support from schema v1 through v6.
 - **`Category.kt`**: Category entity with `type: String` (`PASSWORD` vs `API_KEY`) and default value `'PASSWORD'` ensuring full backwards compatibility.
 - **`CategoryPresets.kt`**: Defines curated standard presets for Passwords (7 categories) and API Keys (6 categories), along with an offline heuristic categorization engine (`suggestCategory`) using token-boundary and substring matching.
 - **`PasswordEntry.kt` & `ApiKeyEntry.kt`**: Support non-destructive soft deletes (`isDeleted`, `deletedAt`), custom ordering (`customOrder: Int = 0`), and custom Material icon tags (`iconName: String? = null`).

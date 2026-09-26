@@ -110,7 +110,7 @@ fun IconPickerBottomSheet(
                     .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(VaultIconCategory.values()) { category ->
+                items(VaultIconCategory.entries) { category ->
                     FilterChip(
                         selected = selectedCategory == category,
                         onClick = { selectedCategory = category },

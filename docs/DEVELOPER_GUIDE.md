@@ -49,6 +49,7 @@ Core test suites:
 - `CategoryPresetsAndPerformanceTest`: Validates preset integrity, default seeding, heuristic category suggester, and decryption cache write-through/clearing.
 - `CustomIconSupportTest`: Validates `VaultIconRegistry` mapping, icon search queries, and fallback behavior.
 - `VaultSortingAndCategoryTest`: Validates multi-criteria sorting, favorites-on-top partitioning, and atomic custom reordering.
+- `ExternalActivityAutoLockSuppressionTest`: Validates external activity auto-lock suppression consumption, timeout windows, and static background timestamp management.
 
 ### 3.2 Building Debug APK
 Compile and package the debug APK:

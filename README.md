@@ -35,7 +35,7 @@
   <p>
     <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin Version" /></a>
     <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-SDK%2035%2B-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android SDK" /></a>
-    <a href="https://github.com/gininaba/AIPOSPasswordManager/releases"><img src="https://img.shields.io/badge/Release-v1.6.0--beta-blue?style=flat-square" alt="Latest Release" /></a>
+    <a href="https://github.com/gininaba/AIPOSPasswordManager/releases"><img src="https://img.shields.io/badge/Release-v1.6.0-blue?style=flat-square" alt="Latest Release" /></a>
     <a href="https://f-droid.org/packages/com.aipos.aipospm/"><img src="https://img.shields.io/f-droid/v/com.aipos.aipospm?style=flat-square&logo=f-droid&logoColor=white" alt="F-Droid" /></a>
     <a href="https://github.com/gininaba/AIPOSPasswordManager"><img src="https://img.shields.io/badge/Network-100%25%20Offline-success?style=flat-square" alt="100% Offline" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License" /></a>
@@ -268,13 +268,16 @@ With an active emulator or connected USB device:
 
 ## Recent Improvements & Fixes
 
-* **Performance, Category Presets & Custom Icon Suite (v1.6.0)**:
+* **Production-Ready Performance, Category Presets & Custom Icon Suite (v1.6.0 Stable)**:
   * **Instant Vault Startup (<15ms)**: Decoupled initial password list rendering from heavy Keystore cryptographic audits, eliminating startup lag completely for vaults containing 200+ credentials.
   * **In-Memory Session Decryption Cache**: Thread-safe in-memory cache reuses decrypted values during audit passes to avoid repeated Keystore hardware overhead, automatically flushed from memory on app lock or session timeout.
   * **Category Folder Presets**: Out-of-the-box standard category folders for both Passwords (7 presets) and API Keys (6 presets) with a dedicated one-tap "Load Presets" restoration tool in Category Manager.
   * **Smart 1-Tap Category Suggestions**: Heuristic categorization engine proactively suggests relevant folders (e.g. Email & Accounts, AI & Chatbots, Payment Gateways) based on entry title, URL, or service name with instant 1-tap assignment.
-  * **Curated Custom Icon Picker**: Integrated Material Design icon library covering Developer & Cloud, Services & Web, Security & Devices, and General categories for custom visual credential identification.
-  * **Room Database v6**: Upgraded database schema with automated migration supporting custom icon tags and category presets.
+  * **Curated Custom Icon Suite**: Integrated Material Design icon library featuring 73 curated icons across Developer & Cloud, Services & Web, Security & Devices, and General categories for custom visual credential identification.
+  * **Auto-Lock Lifecycle Hardening**: Static background timestamp tracking guarded against configuration changes prevents auto-lock bypass across activity recreation. External activity suppression guarantees uninterrupted Storage Access Framework file picking and permission flows when auto-lock timeout is set to Immediately.
+  * **Hardened Backup Export & Restore**: Prompt-first password configuration with confirmation validation, visibility toggles, and state preservation across device rotations.
+  * **Room Database v6 & Full Migration Coverage**: Comprehensive automated migration pipeline covering schemas v1 through v6.
+  * **Direct Website URL Browser Launch**: One-tap browser launch action with safe intent resolution in Password Detail view.
 * **Configurable Vault Sorting & Segregated Categories (v1.5.0)**:
   * **Configurable Vault Sorting**: 6 sort options (Title A–Z, Title Z–A, Date Added Newest/Oldest, Recently Updated, Custom Order) with persistent preferences.
   * **Keep Favorites on Top & Section Headers**: Starred credentials pin to a dedicated `FAVORITES` group, followed by `ALL PASSWORDS` or `ALL API KEYS` with real-time count badges.

@@ -17,8 +17,8 @@ android {
         applicationId = "com.aipos.aipospm"
         minSdk = 24
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.6.0-beta"
+        versionCode = 10
+        versionName = "1.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

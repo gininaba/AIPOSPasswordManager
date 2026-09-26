@@ -29,12 +29,12 @@ class MainActivity : FragmentActivity() {
     private lateinit var categoryViewModel: CategoryViewModel
     private lateinit var generatorViewModel: PasswordGeneratorViewModel
     private val biometricHelper = BiometricHelper()
-    private var lastActiveTime: Long = 0
     private val screenOffReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
             if (intent?.action == android.content.Intent.ACTION_SCREEN_OFF) {
                 authViewModel.lock()
                 passwordViewModel.clearDecryptionCache()
+                lastBackgroundTime = 0L
             }
         }
     }
@@ -125,23 +125,57 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    companion object {
+        @Volatile
+        private var isExpectingExternalActivity = false
+        @Volatile
+        private var externalActivityLaunchTime = 0L
+        @Volatile
+        private var lastBackgroundTime = 0L
+
+        fun setExpectingExternalActivity(expecting: Boolean) {
+            isExpectingExternalActivity = expecting
+            externalActivityLaunchTime = if (expecting) System.currentTimeMillis() else 0L
+        }
+
+        fun consumeExternalActivitySuppression(): Boolean {
+            if (!isExpectingExternalActivity) return false
+            val now = System.currentTimeMillis()
+            // Allow up to 10 minutes for user to complete file picker / system dialog flow
+            val valid = (now - externalActivityLaunchTime) < 10 * 60 * 1000
+            isExpectingExternalActivity = false
+            externalActivityLaunchTime = 0L
+            return valid
+        }
+
+        fun getLastBackgroundTime(): Long = lastBackgroundTime
+        fun setLastBackgroundTime(time: Long) { lastBackgroundTime = time }
+        fun isExpectingExternalActivity(): Boolean = isExpectingExternalActivity
+    }
+
     override fun onStop() {
         super.onStop()
-        lastActiveTime = System.currentTimeMillis()
+        if (!isChangingConfigurations) {
+            lastBackgroundTime = System.currentTimeMillis()
+        }
     }
 
     override fun onStart() {
         super.onStart()
-        if (lastActiveTime > 0) {
+        if (consumeExternalActivitySuppression()) {
+            lastBackgroundTime = 0L
+            return
+        }
+        if (lastBackgroundTime > 0L) {
             val timeoutMinutes = authViewModel.uiState.value.autoLockTimeout
             if (timeoutMinutes >= 0) {
-                val elapsed = System.currentTimeMillis() - lastActiveTime
-                if (elapsed > timeoutMinutes * 60 * 1000) {
+                val elapsed = System.currentTimeMillis() - lastBackgroundTime
+                if (elapsed >= timeoutMinutes * 60 * 1000L) {
                     authViewModel.lock()
                     passwordViewModel.clearDecryptionCache()
-                    lastActiveTime = 0L
                 }
             }
+            lastBackgroundTime = 0L
         }
     }
 

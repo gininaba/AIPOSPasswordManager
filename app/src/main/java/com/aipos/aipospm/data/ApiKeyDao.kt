@@ -14,6 +14,9 @@ interface ApiKeyDao {
     @Query("SELECT * FROM api_keys WHERE isDeleted = 0 ORDER BY updatedAt DESC")
     fun getAllApiKeys(): Flow<List<ApiKeyEntry>>
 
+    @Query("SELECT * FROM api_keys WHERE isDeleted = 0 ORDER BY updatedAt DESC")
+    suspend fun getActiveApiKeysList(): List<ApiKeyEntry>
+
     @Query("SELECT * FROM api_keys WHERE isDeleted = 0 AND serviceName LIKE '%' || :query || '%' ORDER BY updatedAt DESC")
     fun searchApiKeys(query: String): Flow<List<ApiKeyEntry>>
 

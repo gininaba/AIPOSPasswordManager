@@ -535,7 +535,6 @@ fun PasswordListContent(
                                 val isReused = entry.id in reusedPasswordIds
                                 val isCustomReorderEnabled = sortOption == SortOption.CUSTOM &&
                                     searchQuery.isEmpty() &&
-                                    selectedCategoryIdFilter == null &&
                                     !showCompromisedOnlyFilter &&
                                     !showReusedOnlyFilter
 

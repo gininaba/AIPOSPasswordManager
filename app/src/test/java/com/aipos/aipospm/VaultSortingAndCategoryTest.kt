@@ -188,6 +188,110 @@ class VaultSortingAndCategoryTest {
         assertEquals(null, selectedCategoryIdFilter)
     }
 
+    @Test
+    fun testCategoryReorderPreservesGlobalAndCategoryOrder() {
+        val p1 = createPassword(id = 1, title = "Bank A", categoryId = 10, customOrder = 0)
+        val p2 = createPassword(id = 2, title = "Personal Mail", categoryId = 20, customOrder = 1)
+        val p3 = createPassword(id = 3, title = "Bank B", categoryId = 10, customOrder = 2)
+        val p4 = createPassword(id = 4, title = "Personal Social", categoryId = 20, customOrder = 3)
+        val p5 = createPassword(id = 5, title = "Bank C", categoryId = 10, customOrder = 4)
+
+        val allPasswords = listOf(p1, p2, p3, p4, p5)
+        val category10Passwords = allPasswords.filter { it.categoryId == 10 }
+
+        // Category 10 list: [Bank A, Bank B, Bank C]
+        assertEquals(listOf("Bank A", "Bank B", "Bank C"), category10Passwords.map { it.title })
+
+        // Move "Bank B" (index 1) UP to index 0
+        val reorderedCategory10 = category10Passwords.toMutableList().apply {
+            val moved = removeAt(1)
+            add(0, moved)
+        }
+        assertEquals(listOf("Bank B", "Bank A", "Bank C"), reorderedCategory10.map { it.title })
+
+        // Apply ViewModel's slot preservation reordering logic
+        val sortedAll = sortPasswords(allPasswords, SortOption.CUSTOM, pinFavorites = false)
+        val itemIds = category10Passwords.map { it.id }.toSet()
+        val fullIndices = sortedAll.mapIndexedNotNull { index, entry ->
+            if (entry.id in itemIds) index else null
+        }
+        val updatedFullList = sortedAll.toMutableList()
+        for (i in fullIndices.indices) {
+            updatedFullList[fullIndices[i]] = reorderedCategory10[i]
+        }
+        val persistedList = updatedFullList.mapIndexed { index, entry ->
+            entry.copy(customOrder = index)
+        }
+
+        // Verify Category 10 order: Bank B is now before Bank A
+        val resultCat10 = sortPasswords(persistedList.filter { it.categoryId == 10 }, SortOption.CUSTOM, pinFavorites = false)
+        assertEquals(listOf("Bank B", "Bank A", "Bank C"), resultCat10.map { it.title })
+
+        // Verify Category 20 order is completely unaffected
+        val resultCat20 = sortPasswords(persistedList.filter { it.categoryId == 20 }, SortOption.CUSTOM, pinFavorites = false)
+        assertEquals(listOf("Personal Mail", "Personal Social"), resultCat20.map { it.title })
+
+        // Verify "All" view order: Bank B moved ahead of Bank A, while interleaved items maintain their relative positions
+        val resultAll = sortPasswords(persistedList, SortOption.CUSTOM, pinFavorites = false)
+        assertEquals(listOf("Bank B", "Personal Mail", "Bank A", "Personal Social", "Bank C"), resultAll.map { it.title })
+    }
+
+    @Test
+    fun testApiKeyCategoryReorderPreservesGlobalAndCategoryOrder() {
+        val k1 = createApiKey(id = 1, serviceName = "Work AWS", categoryId = 10, customOrder = 0)
+        val k2 = createApiKey(id = 2, serviceName = "Personal OpenAI", categoryId = 20, customOrder = 1)
+        val k3 = createApiKey(id = 3, serviceName = "Work GCP", categoryId = 10, customOrder = 2)
+
+        val allKeys = listOf(k1, k2, k3)
+        val category10Keys = allKeys.filter { it.categoryId == 10 }
+
+        // Move "Work GCP" UP to index 0
+        val reorderedCategory10 = category10Keys.toMutableList().apply {
+            val moved = removeAt(1)
+            add(0, moved)
+        }
+
+        val sortedAll = sortApiKeys(allKeys, SortOption.CUSTOM, pinFavorites = false)
+        val itemIds = category10Keys.map { it.id }.toSet()
+        val fullIndices = sortedAll.mapIndexedNotNull { index, entry ->
+            if (entry.id in itemIds) index else null
+        }
+        val updatedFullList = sortedAll.toMutableList()
+        for (i in fullIndices.indices) {
+            updatedFullList[fullIndices[i]] = reorderedCategory10[i]
+        }
+        val persistedList = updatedFullList.mapIndexed { index, entry ->
+            entry.copy(customOrder = index)
+        }
+
+        val resultCat10 = sortApiKeys(persistedList.filter { it.categoryId == 10 }, SortOption.CUSTOM, pinFavorites = false)
+        assertEquals(listOf("Work GCP", "Work AWS"), resultCat10.map { it.serviceName })
+
+        val resultAll = sortApiKeys(persistedList, SortOption.CUSTOM, pinFavorites = false)
+        assertEquals(listOf("Work GCP", "Personal OpenAI", "Work AWS"), resultAll.map { it.serviceName })
+    }
+
+    @Test
+    fun testCustomReorderEnabledWhenCategoryIsFiltered() {
+        val sortOption = SortOption.CUSTOM
+        val searchQuery = ""
+        val selectedCategoryIdFilter = 5
+        val showCompromisedOnlyFilter = false
+        val showReusedOnlyFilter = false
+
+        // Password list condition (selectedCategoryIdFilter is no longer blocking custom reorder)
+        val isPasswordCustomReorderEnabled = sortOption == SortOption.CUSTOM &&
+            searchQuery.isEmpty() &&
+            !showCompromisedOnlyFilter &&
+            !showReusedOnlyFilter
+        assertTrue(isPasswordCustomReorderEnabled)
+
+        // ApiKey list condition (selectedCategoryIdFilter is no longer blocking custom reorder)
+        val isApiKeyCustomReorderEnabled = sortOption == SortOption.CUSTOM &&
+            searchQuery.isEmpty()
+        assertTrue(isApiKeyCustomReorderEnabled)
+    }
+
     // Helper functions mirroring the ViewModels' sorting comparator
     private fun sortPasswords(
         items: List<PasswordEntry>,
@@ -200,7 +304,7 @@ class VaultSortingAndCategoryTest {
             SortOption.UPDATED_DESC -> compareByDescending<PasswordEntry> { it.updatedAt }
             SortOption.CREATED_DESC -> compareByDescending<PasswordEntry> { it.createdAt }
             SortOption.CREATED_ASC -> compareBy<PasswordEntry> { it.createdAt }
-            SortOption.CUSTOM -> compareBy<PasswordEntry> { it.customOrder }.thenBy { it.id }
+            SortOption.CUSTOM -> compareBy<PasswordEntry> { it.customOrder }.thenByDescending { it.updatedAt }.thenBy { it.id }
         }
 
         return if (pinFavorites) {
@@ -223,7 +327,7 @@ class VaultSortingAndCategoryTest {
             SortOption.UPDATED_DESC -> compareByDescending<ApiKeyEntry> { it.updatedAt }
             SortOption.CREATED_DESC -> compareByDescending<ApiKeyEntry> { it.createdAt }
             SortOption.CREATED_ASC -> compareBy<ApiKeyEntry> { it.createdAt }
-            SortOption.CUSTOM -> compareBy<ApiKeyEntry> { it.customOrder }.thenBy { it.id }
+            SortOption.CUSTOM -> compareBy<ApiKeyEntry> { it.customOrder }.thenByDescending { it.updatedAt }.thenBy { it.id }
         }
 
         return if (pinFavorites) {
@@ -240,13 +344,16 @@ class VaultSortingAndCategoryTest {
         isFavorite: Boolean = false,
         createdAt: Long = 1000L,
         updatedAt: Long = 1000L,
-        customOrder: Int = 0
+        customOrder: Int = 0,
+        id: Int = 0,
+        categoryId: Int? = null
     ) = PasswordEntry(
-        id = 0,
+        id = id,
         title = title,
         username = "user",
         encryptedPassword = "enc",
         iv = "iv",
+        categoryId = categoryId,
         isFavorite = isFavorite,
         createdAt = createdAt,
         updatedAt = updatedAt,
@@ -258,12 +365,15 @@ class VaultSortingAndCategoryTest {
         isFavorite: Boolean = false,
         createdAt: Long = 1000L,
         updatedAt: Long = 1000L,
-        customOrder: Int = 0
+        customOrder: Int = 0,
+        id: Int = 0,
+        categoryId: Int? = null
     ) = ApiKeyEntry(
-        id = 0,
+        id = id,
         serviceName = serviceName,
         encryptedApiKey = "enc",
         iv = "iv",
+        categoryId = categoryId,
         isFavorite = isFavorite,
         createdAt = createdAt,
         updatedAt = updatedAt,

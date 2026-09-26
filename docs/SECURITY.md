@@ -15,7 +15,7 @@ AIPOS Password Manager is engineered around three core security tenets:
 |---|---|---|
 | **Vault Encryption at Rest** | AES-256-GCM | 256-bit key stored in `AndroidKeyStore`. 12-byte IV generated randomly per payload. 128-bit authentication tag. |
 | **Master Password Hashing** | PBKDF2WithHmacSHA256 | 120,000 iterations + 16-byte cryptographically secure random salt (`SecureRandom`). |
-| **Backup Encryption** | PBKDF2 + AES-256-GCM | 10,000 iterations for backup key derivation using user backup password. Allows cross-device restoration without hardware key dependency. |
+| **Backup Encryption** | PBKDF2 + AES-256-GCM | 100,000 iterations for backup key derivation using user backup password. Allows cross-device restoration without hardware key dependency. |
 | **Metadata Security** | EncryptedSharedPreferences | Keys encrypted using `AES256_SIV`, values using `AES256_GCM`. Stores master salt and hashed verification tokens. |
 | **Biometric Authentication** | AndroidX Biometric API | Enforces `BIOMETRIC_STRONG` (hardware fingerprint / 3D face recognition). |
 
@@ -63,7 +63,7 @@ sequenceDiagram
 
 ### 4.1 Threat: Device Loss or Physical Access
 - **Mitigation**: Database payload is encrypted with AES-256-GCM. Unlocking requires either the user's master password (derived via 120,000 PBKDF2 iterations) or strong biometric verification (`BIOMETRIC_STRONG`).
-- **Auto-Lock**: Inactivity timer automatically locks the application when backgrounded.
+- **Auto-Lock Hardening**: Inactivity timer automatically locks the application when backgrounded. Background timestamps are tracked statically to prevent bypass across activity recreation. Configuration changes (screen rotation, device folding) are guarded, and external activity suppression seamlessly protects file picker and permission interactions.
 
 ### 4.2 Threat: Memory Inspection & Clipboard Snooping
 - **Mitigation**: `ClipboardHelper` schedules an automatic clipboard clear 30 seconds after copying credentials. Sequential copies cancel and reschedule prior clear timers to prevent race conditions.

@@ -82,6 +82,11 @@ class CustomIconSupportTest {
         assertNotNull(VaultIconRegistry.getIcon("key"))
         assertNotNull(VaultIconRegistry.getIcon("cloud"))
         assertNotNull(VaultIconRegistry.getIcon("shield"))
+        assertNotNull(VaultIconRegistry.getIcon("gaming"))
+        assertNotNull(VaultIconRegistry.getIcon("crypto"))
+        assertNotNull(VaultIconRegistry.getIcon("bug"))
+        assertNotNull(VaultIconRegistry.getIcon("vpn"))
+        assertNotNull(VaultIconRegistry.getIcon("wallet"))
     }
 
     @Test

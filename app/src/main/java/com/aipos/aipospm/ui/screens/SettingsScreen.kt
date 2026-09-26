@@ -1,6 +1,7 @@
 package com.aipos.aipospm.ui.screens
 
 import android.content.Intent
+import com.aipos.aipospm.MainActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -145,21 +146,26 @@ fun SettingsScreen(
     val isBiometricEnabled = authViewModel.isBiometricEnabled()
 
     // Backup states
-    var backupPasswordToSet by remember { mutableStateOf("") }
-    var showSetBackupPasswordDialog by remember { mutableStateOf(false) }
-    var exportUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    var isBackupInProgress by remember { mutableStateOf(false) }
+    var backupPasswordToSet by rememberSaveable { mutableStateOf("") }
+    var confirmBackupPasswordToSet by rememberSaveable { mutableStateOf("") }
+    var backupPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    var confirmBackupPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    var showSetBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
+    var pendingExportPassword by rememberSaveable { mutableStateOf("") }
+    var isBackupInProgress by rememberSaveable { mutableStateOf(false) }
 
-    var backupPasswordToEnter by remember { mutableStateOf("") }
-    var showEnterBackupPasswordDialog by remember { mutableStateOf(false) }
-    var importUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var backupPasswordToEnter by rememberSaveable { mutableStateOf("") }
+    var backupPasswordToEnterVisible by rememberSaveable { mutableStateOf(false) }
+    var showEnterBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
+    var importUriString by rememberSaveable { mutableStateOf<String?>(null) }
+    val importUri = remember(importUriString) { importUriString?.let { android.net.Uri.parse(it) } }
 
     // Recovery Key states
-    var showViewKeyPasswordDialog by remember { mutableStateOf(false) }
-    var confirmPasswordInput by remember { mutableStateOf("") }
-    var confirmPasswordVisible by remember { mutableStateOf(false) }
-    var showRecoveryKeyDialog by remember { mutableStateOf(false) }
-    var decryptedRecoveryKey by remember { mutableStateOf("") }
+    var showViewKeyPasswordDialog by rememberSaveable { mutableStateOf(false) }
+    var confirmPasswordInput by rememberSaveable { mutableStateOf("") }
+    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    var showRecoveryKeyDialog by rememberSaveable { mutableStateOf(false) }
+    var decryptedRecoveryKey by rememberSaveable { mutableStateOf("") }
 
     val csvImportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -191,16 +197,35 @@ fun SettingsScreen(
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri ->
-        if (uri != null) {
-            // Take persistable permission so the URI stays valid across threads
+        val pwd = pendingExportPassword
+        pendingExportPassword = ""
+        backupPasswordToSet = ""
+        confirmBackupPasswordToSet = ""
+        if (uri != null && pwd.isNotEmpty()) {
             try {
                 context.contentResolver.takePersistableUriPermission(
                     uri,
                     Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             } catch (_: SecurityException) { /* Some providers don't support persistable permissions — that's OK */ }
-            exportUri = uri
-            showSetBackupPasswordDialog = true
+
+            isBackupInProgress = true
+            passwordViewModel.exportBackup(
+                uri = uri,
+                password = pwd,
+                onSuccess = {
+                    isBackupInProgress = false
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Backup exported successfully")
+                    }
+                },
+                onError = { error ->
+                    isBackupInProgress = false
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Export failed: $error")
+                    }
+                }
+            )
         }
     }
 
@@ -208,37 +233,77 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            // Take persistable permission so the URI stays valid across threads
             try {
                 context.contentResolver.takePersistableUriPermission(
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             } catch (_: SecurityException) { /* Some providers don't support persistable permissions — that's OK */ }
-            importUri = uri
+            importUriString = uri.toString()
+            backupPasswordToEnter = ""
+            backupPasswordToEnterVisible = false
             showEnterBackupPasswordDialog = true
         }
     }
 
     // Set Backup Password Dialog (for export)
     if (showSetBackupPasswordDialog) {
+        val passwordsMatch = backupPasswordToSet.isNotEmpty() && backupPasswordToSet == confirmBackupPasswordToSet
         AlertDialog(
-            onDismissRequest = { if (!isBackupInProgress) showSetBackupPasswordDialog = false },
+            onDismissRequest = {
+                if (!isBackupInProgress) {
+                    showSetBackupPasswordDialog = false
+                    backupPasswordToSet = ""
+                    confirmBackupPasswordToSet = ""
+                }
+            },
             title = { Text("Set Backup Password") },
             text = {
                 Column {
                     Text(
-                        text = "Enter a password to encrypt your backup file. You will need this password to restore your data on any device.",
+                        text = "Enter a password to encrypt your backup file. You will need this password to restore your vault data on any device.",
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = backupPasswordToSet,
                         onValueChange = { backupPasswordToSet = it },
                         label = { Text("Backup Password") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (backupPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { backupPasswordVisible = !backupPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (backupPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (backupPasswordVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = confirmBackupPasswordToSet,
+                        onValueChange = { confirmBackupPasswordToSet = it },
+                        label = { Text("Confirm Backup Password") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        visualTransformation = if (confirmBackupPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { confirmBackupPasswordVisible = !confirmBackupPasswordVisible }) {
+                                Icon(
+                                    imageVector = if (confirmBackupPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (confirmBackupPasswordVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
+                        isError = confirmBackupPasswordToSet.isNotEmpty() && !passwordsMatch,
+                        supportingText = {
+                            if (confirmBackupPasswordToSet.isNotEmpty() && !passwordsMatch) {
+                                Text("Passwords do not match", color = MaterialTheme.colorScheme.error)
+                            }
+                        },
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
@@ -246,38 +311,25 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val uri = exportUri
-                        if (uri != null && backupPasswordToSet.isNotEmpty()) {
-                            isBackupInProgress = true
+                        if (passwordsMatch) {
+                            pendingExportPassword = backupPasswordToSet
                             showSetBackupPasswordDialog = false
-                            val pwd = backupPasswordToSet
-                            backupPasswordToSet = ""
-                            passwordViewModel.exportBackup(
-                                uri = uri,
-                                password = pwd,
-                                onSuccess = {
-                                    isBackupInProgress = false
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Backup exported successfully")
-                                    }
-                                },
-                                onError = { error ->
-                                    isBackupInProgress = false
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Export failed: $error")
-                                    }
-                                }
-                            )
+                            MainActivity.setExpectingExternalActivity(true)
+                            exportLauncher.launch("aipospm_backup.bin")
                         }
                     },
-                    enabled = backupPasswordToSet.isNotEmpty() && !isBackupInProgress
+                    enabled = passwordsMatch && !isBackupInProgress
                 ) {
-                    Text("Export")
+                    Text("Save to File")
                 }
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showSetBackupPasswordDialog = false },
+                    onClick = {
+                        showSetBackupPasswordDialog = false
+                        backupPasswordToSet = ""
+                        confirmBackupPasswordToSet = ""
+                    },
                     enabled = !isBackupInProgress
                 ) {
                     Text("Cancel")
@@ -304,7 +356,15 @@ fun SettingsScreen(
                         label = { Text("Backup Password") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
-                        visualTransformation = PasswordVisualTransformation(),
+                        visualTransformation = if (backupPasswordToEnterVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { backupPasswordToEnterVisible = !backupPasswordToEnterVisible }) {
+                                Icon(
+                                    imageVector = if (backupPasswordToEnterVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (backupPasswordToEnterVisible) "Hide password" else "Show password"
+                                )
+                            }
+                        },
                         shape = RoundedCornerShape(12.dp)
                     )
                 }
@@ -323,12 +383,14 @@ fun SettingsScreen(
                                 password = pwd,
                                 onSuccess = {
                                     isBackupInProgress = false
+                                    importUriString = null
                                     scope.launch {
                                         snackbarHostState.showSnackbar("Database restored successfully")
                                     }
                                 },
                                 onError = { error ->
                                     isBackupInProgress = false
+                                    importUriString = null
                                     scope.launch {
                                         snackbarHostState.showSnackbar("Restore failed: $error")
                                     }
@@ -343,7 +405,11 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { showEnterBackupPasswordDialog = false },
+                    onClick = {
+                        showEnterBackupPasswordDialog = false
+                        importUriString = null
+                        backupPasswordToEnter = ""
+                    },
                     enabled = !isBackupInProgress
                 ) {
                     Text("Cancel")
@@ -932,7 +998,11 @@ fun SettingsScreen(
                     ) {
                         Button(
                             onClick = {
-                                exportLauncher.launch("aipospm_backup.bin")
+                                backupPasswordToSet = ""
+                                confirmBackupPasswordToSet = ""
+                                backupPasswordVisible = false
+                                confirmBackupPasswordVisible = false
+                                showSetBackupPasswordDialog = true
                             },
                             interactionSource = exportBtnInteractionSource,
                             modifier = Modifier.weight(1f).pressScale(exportBtnInteractionSource),
@@ -943,6 +1013,7 @@ fun SettingsScreen(
                         }
                         OutlinedButton(
                             onClick = {
+                                MainActivity.setExpectingExternalActivity(true)
                                 importLauncher.launch(arrayOf("application/octet-stream", "*/*"))
                             },
                             interactionSource = importBtnInteractionSource,
@@ -981,6 +1052,7 @@ fun SettingsScreen(
                     val csvImportBtnInteractionSource = remember { MutableInteractionSource() }
                     Button(
                         onClick = {
+                            MainActivity.setExpectingExternalActivity(true)
                             csvImportLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv", "*/*"))
                         },
                         interactionSource = csvImportBtnInteractionSource,
@@ -1023,7 +1095,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     InfoRow("App Name", "AIPOS Password Manager")
-                    InfoRow("Version", "v1.6.0 Beta")
+                    InfoRow("Version", "v1.6.0")
                     InfoRow("Developed by", "gininaba")
                     InfoRow("Security", "AES-256-GCM Encryption")
                     InfoRow("Storage", "Fully Offline (Local Only)")

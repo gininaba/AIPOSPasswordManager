@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Visibility
@@ -586,13 +587,30 @@ fun PasswordDetailScreen(
                     DetailField(
                         label = "Website URL",
                         value = entry.url,
-                        icon = Icons.AutoMirrored.Filled.OpenInNew,
+                        icon = Icons.Default.Language,
                         onCopy = {
                             ClipboardHelper.copyAndScheduleClear(context, "Website URL", entry.url)
                             scope.launch {
                                 snackbarHostState.showSnackbar("URL copied (clears in 30s)")
                             }
-                        }
+                        },
+                        onAction = {
+                            try {
+                                val formattedUrl = if (!entry.url.startsWith("http://") && !entry.url.startsWith("https://")) {
+                                    "https://${entry.url}"
+                                } else {
+                                    entry.url
+                                }
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(formattedUrl))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Could not open browser for this URL")
+                                }
+                            }
+                        },
+                        actionIcon = Icons.AutoMirrored.Filled.OpenInNew,
+                        actionDescription = "Open in Browser"
                     )
                 }
 
@@ -695,7 +713,10 @@ private fun DetailField(
     label: String,
     value: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onCopy: () -> Unit
+    onCopy: () -> Unit,
+    onAction: (() -> Unit)? = null,
+    actionIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    actionDescription: String? = null
 ) {
     var isCopied by remember { mutableStateOf(false) }
 
@@ -734,6 +755,19 @@ private fun DetailField(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f)
                 )
+                if (onAction != null && actionIcon != null) {
+                    IconButton(
+                        onClick = onAction,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = actionIcon,
+                            contentDescription = actionDescription,
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
                 IconButton(
                     onClick = {
                         onCopy()

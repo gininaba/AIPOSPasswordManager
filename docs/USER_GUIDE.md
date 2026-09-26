@@ -18,6 +18,7 @@ Welcome to **AIPOS Password Manager**, your offline, highly secure credentials v
 - **Adding Credentials**: Tap the floating `+` button at the bottom right to add a password entry or API key.
 - **Custom Icon Selection**: Personalize passwords and API keys with curated Material icons spanning *Developer & Cloud*, *Services & Web*, *Security & Devices*, and *General* categories to easily distinguish services across vault lists, detail views, and home favorites.
 - **2FA TOTP Support**: Add your 2FA secret or scan a QR code using the built-in offline camera scanner. Live 6-digit TOTP codes generate automatically with a countdown timer.
+- **Direct Website URL Launch**: Tap the browser launch icon next to any website URL in the credential detail view to navigate directly to login pages in your default web browser.
 - **Copying Username & Passwords**: Tap the copy icon next to any entry. Credentials copied to the clipboard auto-clear after 30 seconds for safety.
 - **Favorite Pinning**: Tap the star icon on any credential card to mark it as a favorite. When "Keep Favorites on Top" is enabled, favorites stay pinned above regular entries.
 - **Swipe to Delete & Soft Deletes**: Swipe any credential card left to delete it, or tap the delete icon on the detail screen.
@@ -164,9 +165,9 @@ Fill usernames and passwords into any mobile application or browser with zero ma
 
 ## 9. Encrypted Backups & CSV Imports
 
-- **Encrypted JSON Backup**:
-  - Export your vault data to an encrypted backup file using a custom backup password.
-  - Transfer the `.json` file to a new device and import it safely using your backup password.
+- **Encrypted Backup Export & Restore**:
+  - Export your vault data to an encrypted backup file (`aipospm_backup.bin`) using a dedicated backup password with confirmation validation.
+  - Transfer the encrypted backup file to a new device and import it safely using your backup password.
 - **Third-Party CSV Import**:
   - Import credentials from Bitwarden, KeePass, or 1Password CSV exports directly in the Settings menu.
 

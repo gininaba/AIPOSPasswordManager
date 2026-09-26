@@ -1,5 +1,6 @@
 package com.aipos.aipospm.ui.screens
 
+import com.aipos.aipospm.MainActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,8 +69,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,6 +105,7 @@ fun AddEditPasswordScreen(
     val uiState by passwordViewModel.uiState.collectAsStateWithLifecycle()
     val categories by categoryViewModel.passwordCategories.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     var title by rememberSaveable { mutableStateOf("") }
     var username by rememberSaveable { mutableStateOf("") }
@@ -126,6 +130,10 @@ fun AddEditPasswordScreen(
         onResult = { isGranted ->
             if (isGranted) {
                 showScanner = true
+            } else {
+                scope.launch {
+                    snackbarHostState.showSnackbar("Camera permission is required to scan QR codes")
+                }
             }
         }
     )
@@ -636,6 +644,7 @@ fun AddEditPasswordScreen(
                                         if (permissionCheck == PackageManager.PERMISSION_GRANTED) {
                                             showScanner = true
                                         } else {
+                                            MainActivity.setExpectingExternalActivity(true)
                                             permissionLauncher.launch(Manifest.permission.CAMERA)
                                         }
                                     }

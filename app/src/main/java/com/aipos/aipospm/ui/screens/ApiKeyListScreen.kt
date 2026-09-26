@@ -415,8 +415,7 @@ fun ApiKeyListContent(
                                 enableDismissFromEndToStart = true
                             ) {
                                 val isCustomReorderEnabled = sortOption == SortOption.CUSTOM &&
-                                    searchQuery.isEmpty() &&
-                                    selectedCategoryIdFilter == null
+                                    searchQuery.isEmpty()
 
                                 val canMoveUp = isCustomReorderEnabled && index > 0 &&
                                     (!pinFavorites || entry.isFavorite == apiKeys[index - 1].isFavorite)

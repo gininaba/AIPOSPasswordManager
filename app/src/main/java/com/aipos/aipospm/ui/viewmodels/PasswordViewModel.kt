@@ -247,7 +247,7 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
             SortOption.UPDATED_DESC -> compareByDescending { it.updatedAt }
             SortOption.CREATED_DESC -> compareByDescending { it.createdAt }
             SortOption.CREATED_ASC -> compareBy { it.createdAt }
-            SortOption.CUSTOM -> compareBy<PasswordEntry> { it.customOrder }.thenByDescending { it.updatedAt }
+            SortOption.CUSTOM -> compareBy<PasswordEntry> { it.customOrder }.thenByDescending { it.updatedAt }.thenBy { it.id }
         }
         return if (pinFavorites) {
             list.sortedWith(compareByDescending<PasswordEntry> { it.isFavorite }.then(baseComparator))
@@ -273,9 +273,27 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         reordered.add(toIndex, movedItem)
         viewModelScope.launch(Dispatchers.IO) {
             db.withTransaction {
-                reordered.forEachIndexed { index, entry ->
-                    if (entry.customOrder != index) {
-                        passwordDao.updatePasswordOrder(entry.id, index)
+                val allPasswords = passwordDao.getActivePasswordsList()
+                val sortedAll = sortPasswordList(allPasswords, SortOption.CUSTOM, pinFavorites = _pinFavorites.value)
+                val itemIds = items.map { it.id }.toSet()
+                val fullIndices = sortedAll.mapIndexedNotNull { index, entry ->
+                    if (entry.id in itemIds) index else null
+                }
+                if (fullIndices.size == reordered.size) {
+                    val updatedFullList = sortedAll.toMutableList()
+                    for (i in fullIndices.indices) {
+                        updatedFullList[fullIndices[i]] = reordered[i]
+                    }
+                    updatedFullList.forEachIndexed { index, entry ->
+                        if (entry.customOrder != index) {
+                            passwordDao.updatePasswordOrder(entry.id, index)
+                        }
+                    }
+                } else {
+                    reordered.forEachIndexed { index, entry ->
+                        if (entry.customOrder != index) {
+                            passwordDao.updatePasswordOrder(entry.id, index)
+                        }
                     }
                 }
             }

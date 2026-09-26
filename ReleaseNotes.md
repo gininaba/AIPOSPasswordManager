@@ -1,8 +1,8 @@
 # AIPOS Password Manager — Release Notes
 
-## What's New in v1.6.0 (Beta)
+## What's New in v1.6.0 (Stable Release)
 
-Welcome to the **v1.6.0 Beta** release of AIPOS Password Manager! This release focuses on high-performance vault loading for large credential collections (200+ passwords), out-of-the-box category folder presets, an intelligent 1-tap category suggester, and a curated custom icon picker.
+Welcome to the **v1.6.0 Stable** release of AIPOS Password Manager! This release delivers instant vault startup (<15ms) for large credential collections (200+ passwords), out-of-the-box category folder presets, an intelligent 1-tap category suggester, a curated custom icon suite, hardened auto-lock lifecycle management, robust backup export and restoration, and complete database migration coverage.
 
 ---
 
@@ -41,20 +41,42 @@ Welcome to the **v1.6.0 Beta** release of AIPOS Password Manager! This release f
 
 ---
 
-### 4. Curated Custom Icon Picker
+### 4. Curated Custom Icon Suite
 - **Personalized Visual Identification**:
   - Assign curated Material Design icons to both Passwords and API Keys when adding or editing entries.
-  - Organized into 4 distinct domains: Developer & Cloud, Services & Web, Security & Devices, and General.
+  - Expanded icon collection with 73 curated icons organized across 4 distinct domains: Developer & Cloud, Services & Web, Security & Devices, and General.
   - Includes real-time search, icon preview, and graceful fallback to initial avatars.
 - **Universal Rendering**:
   - Custom icons appear consistently across vault list cards, detail screens, and Home favorites.
 
 ---
 
-### 5. Room Database v6 Upgrade
-- **Automated Migration**:
-  - Upgraded database schema to version 6 preserving 100% of existing user data without manual export/import needed.
-  - Added nullable `iconName` column to both `passwords` and `api_keys` tables.
+### 5. Auto-Lock Lifecycle & External Activity Hardening
+- **Static Background Timestamp Tracking**:
+  - Auto-lock background timing is persisted across activity destruction, preventing auto-lock bypass when the system trims memory in the background.
+  - Configuration changes (screen rotation, folding/unfolding) are guarded against false auto-lock triggers when timeout is set to Immediately.
+- **External Activity Auto-Lock Suppression**:
+  - Seamlessly handles transitions to Android system file pickers (Storage Access Framework) and runtime permission dialogs without locking the user out mid-task.
+
+---
+
+### 6. Robust Backup Export & Restore Architecture
+- **Prompt-First Backup Password**:
+  - Tapping Export Backup now prompts for and validates the backup password before opening the system file picker.
+  - Added confirm password field with mismatch validation and visibility toggles on both export and import dialogs.
+  - State preservation prevents URI or dialog loss across screen rotations.
+
+---
+
+### 7. Direct Website URL Launching
+- **One-Tap Browser Navigation**:
+  - Added an "Open in Browser" action button alongside clipboard copy for website URLs in Password Detail view, featuring safe intent handling.
+
+---
+
+### 8. Comprehensive Database Migration Coverage
+- **Room Database v6 & AutoMigration from v1**:
+  - Automated migration support from schema v1 through v6 guarantees smooth upgrades for users across any app release without data loss.
 
 ---
 
