@@ -107,9 +107,11 @@ class MainActivity : FragmentActivity() {
         }
 
         // Register screen-off receiver
-        registerReceiver(
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
             screenOffReceiver,
-            android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF)
+            android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
         )
 
         // Auto-trigger biometric on launch if enabled

@@ -9,13 +9,19 @@ Welcome to **AIPOS Password Manager**, your offline, highly secure credentials v
 1. **Initial Setup**: When launching the app for the first time, you will create a **Master Password**.
 2. **Password Strength Meter**: Make sure your master password reaches a high strength score.
 3. **Biometric Unlocking**: Enable fingerprint or face unlock for instant access.
-4. **Emergency Recovery Key**: Generate and save your 16-character Emergency Recovery Key (`AIPOS-XXXX-XXXX-XXXX-XXXX`). If you ever forget your master password, this key allows you to reset your vault safely.
+4. **Emergency Recovery Key**: Generate and save your 16-character Emergency Recovery Key (`AIPOS-XXXX-XXXX-XXXX-XXXX`). If you ever forget your master password, this key allows you to reset your vault safely. When recovering, you can enter the key with or without the `AIPOS-` prefix, with or without hyphens, in uppercase or lowercase (e.g. `AIPOS-ABCD-EFGH-1234-5678`, `ABCD-EFGH-1234-5678`, or `abcdefgh12345678`).
 
 ---
 
 ## 2. Managing Passwords & API Keys
 
 - **Adding Credentials**: Tap the floating `+` button at the bottom right to add a password entry or API key.
+- **1-Tap Inline Password Generation & Re-Roll**:
+  - In the Add/Edit Password screen, tap the **Generate** button next to the password field to immediately generate a strong random password right inside the input field.
+  - The generated password automatically reveals (`passwordVisible = true`) with a haptic pulse so you can inspect it instantly.
+  - Want a different password? Simply tap **Generate** again as many times as you like to re-roll new passwords on the fly.
+  - Need custom length or symbol rules? Tap the **Tune** icon next to Generate to open the full Password Generator sheet, adjust options, and tap the full-width **Use This Password** button to insert it into your form.
+- **Category Folder Badges**: Credential detail views for both Passwords and API Keys prominently display their assigned folder badge with a folder icon beneath the title for instant visual identification.
 - **Custom Icon Selection**: Personalize passwords and API keys with curated Material icons spanning *Developer & Cloud*, *Services & Web*, *Security & Devices*, and *General* categories to easily distinguish services across vault lists, detail views, and home favorites.
 - **2FA TOTP Support**: Add your 2FA secret or scan a QR code using the built-in offline camera scanner. Live 6-digit TOTP codes generate automatically with a countdown timer.
 - **Direct Website URL Launch**: Tap the browser launch icon next to any website URL in the credential detail view to navigate directly to login pages in your default web browser.
@@ -169,5 +175,6 @@ Fill usernames and passwords into any mobile application or browser with zero ma
   - Export your vault data to an encrypted backup file (`aipospm_backup.bin`) using a dedicated backup password with confirmation validation.
   - Transfer the encrypted backup file to a new device and import it safely using your backup password.
 - **Third-Party CSV Import**:
-  - Import credentials from Bitwarden, KeePass, or 1Password CSV exports directly in the Settings menu.
+  - Import credentials from Bitwarden, KeePass, or 1Password CSV exports directly in the Settings menu (*Settings > Security & Data > Import from CSV*).
+  - *Bitwarden Notes*: Export your vault from Bitwarden using standard CSV format. If your CSV was created in Excel or exported on Windows with a Byte Order Mark (BOM), or in a non-English locale, full normalization and direct Bitwarden `.json` vault import support are actively scheduled for the next app update.
 

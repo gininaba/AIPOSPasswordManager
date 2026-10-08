@@ -543,7 +543,7 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                         throw IllegalArgumentException("Invalid backup file format.")
                     }
 
-                    if (parsed == null || parsed.version != 1) {
+                    if (parsed == null || (parsed.version != null && parsed.version !in 1..10)) {
                         throw IllegalArgumentException("Unsupported or corrupt backup version.")
                     }
                     parsed
@@ -567,6 +567,7 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 // Step 3: Atomically restore the database using batch insertions.
+                clearDecryptionCache()
                 db.withTransaction {
                     db.passwordDao().clearTable()
                     db.apiKeyDao().clearTable()
@@ -624,6 +625,7 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     db.apiKeyDao().insertApiKeys(apiKeysToInsert)
                 }
 
+                clearDecryptionCache()
                 onSuccess()
             } catch (e: Exception) {
                 onError(e.message ?: "Failed to decrypt or restore backup")
@@ -727,6 +729,7 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     passwordDao.insertPasswords(passwordsToInsert)
                 }
 
+                clearDecryptionCache()
                 onSuccess(importEntries.size)
             } catch (e: Exception) {
                 onError(e.message ?: "Failed to import CSV")

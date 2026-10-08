@@ -1,5 +1,89 @@
 # AIPOS Password Manager — Release Notes
 
+## What's New in v1.6.1 (Maintenance & Quality-of-Life Update)
+
+AIPOS Password Manager **v1.6.1** is a focused quality-of-life and stability update bringing seamless inline password generation, navigation refinements, enhanced recovery key flexibility, system security improvements for Android 14+, and camera reliability fixes.
+
+---
+
+### 1. 1-Tap Inline Password Generation & Re-Roll
+- **Instant Inline Generation**:
+  - When creating or editing a credential, tapping the **Generate** button now instantly produces a strong, cryptographically secure password directly inside the Password field.
+  - Automatically reveals the password (`passwordVisible = true`) and triggers subtle tactile haptic feedback so you can verify the generated password immediately without leaving the form.
+  - **Rapid Re-Roll**: If you want a different password, simply tap **Generate** again. Each tap generates a fresh, unique random password on the fly.
+- **Tune & Customize Options**:
+  - A discrete **Options** (`Tune`) icon button is placed right next to the Generate button. Tapping it opens the full Password Generator screen where you can customize character sets (uppercase, lowercase, digits, symbols), configure custom length sliders, and inspect entropy strength scores.
+
+---
+
+### 2. Full-Width "Use This Password" Redesign
+- **High-Affordance Action Layout**:
+  - In the standalone **Password Generator** screen, the action buttons have been ergonomically re-architected into a 2-row layout.
+  - The top row houses balanced, equal-width **Copy** and **Regenerate** buttons.
+  - The bottom row features a prominent, full-width primary **Use This Password** button with strong visual contrast and tactile feedback.
+- **Seamless Navigation Return**:
+  - Tapping **Use This Password** saves the generated password to navigation state and navigates back to your credential form, automatically populating the password field.
+
+---
+
+### 3. Prefix-Agnostic Emergency Recovery Key Verification
+- **Flexible Key Input**:
+  - Entering your 16-character recovery key during emergency vault reset is now completely prefix-agnostic and case-insensitive.
+  - Users can enter the key with or without the `AIPOS-` prefix (e.g. `AIPOS-ABCD-EFGH-1234-5678` or `ABCD-EFGH-1234-5678` or `abcdefgh12345678`).
+  - Whitespace and hyphens are automatically stripped and normalized, eliminating verification frustration during critical account recovery.
+
+---
+
+### 4. Credential Detail Folder Badges
+- **Visual Folder Identification**:
+  - Credential detail screens for both **Passwords** and **API Keys** now prominently display the assigned category folder name with an accompanying folder icon.
+  - Provides instant visual confirmation of the organizational folder without needing to enter edit mode.
+
+---
+
+### 5. Category Quick-Creation Auto-Selection
+- **Frictionless Workflow**:
+  - When creating a new category folder directly from the Add/Edit Credential dialog, the newly created folder is now automatically selected and assigned immediately upon creation.
+
+---
+
+### 6. Android 14+ Screen-Off Receiver Security
+- **Explicit Export Flags**:
+  - In compliance with Android 14 (API 34+) security mandates, the screen-off lock broadcast receiver now registers using `ContextCompat.registerReceiver(..., RECEIVER_NOT_EXPORTED)`.
+  - Guarantees OS-level broadcast isolation, preventing any malicious local apps from sending spoofed screen-off events.
+
+---
+
+### 7. CameraX 2FA QR Scanner Row Stride Fix
+- **Hardware Alignment Compatibility**:
+  - Resolved an issue on certain camera sensors where CameraX `ImageProxy` buffers contain row stride padding (`rowStride > width`).
+  - Implemented an automatic compact luminance array extractor in `QrCodeAnalyzer`, preventing misaligned byte indexing and guaranteeing instant 2FA QR code decoding across all Android camera hardware.
+  - Analysis results are safely dispatched directly to the main thread for immediate UI consumption.
+
+---
+
+### 8. Decryption Cache Eviction on Database & CSV Restorations
+- **Stale State Prevention**:
+  - Importing a backup database or restoring credentials from third-party CSV files now proactively flushes the in-memory session decryption cache.
+  - Ensures newly restored entries are always freshly audited and decrypted directly from the updated database state.
+
+---
+
+### 9. Build Hardening & Toolchain Modernization
+- **OpenJDK 21 Compatibility**:
+  - Upgraded project Gradle properties and build toolchain configurations to officially support OpenJDK 21 LTS and Android Gradle Plugin 8.9+.
+- **Data Extraction Rules Alignment**:
+  - Synchronized Android 12+ `data_extraction_rules.xml` with legacy `backup_rules.xml` to prevent unintentional cloud extraction of sensitive Keystore preferences.
+
+---
+
+### 10. Roadmap Preview: Next Update
+- **Bitwarden JSON Import**: Native parsing for Bitwarden's default unencrypted JSON export format, including folders, notes, multi-URIs, and custom fields.
+- **UTF-8 BOM CSV Normalization**: Byte Order Mark (`\uFEFF`) stripping and localized header detection to support Bitwarden CSVs exported from Windows/Excel or international locales.
+- **Enhanced Import Error Diagnostics**: User-friendly feedback toasts and error dialogs during CSV and JSON imports.
+
+---
+
 ## What's New in v1.6.0 (Stable Release)
 
 Welcome to the **v1.6.0 Stable** release of AIPOS Password Manager! This release delivers instant vault startup (<15ms) for large credential collections (200+ passwords), out-of-the-box category folder presets, an intelligent 1-tap category suggester, a curated custom icon suite, hardened auto-lock lifecycle management, robust backup export and restoration, and complete database migration coverage.

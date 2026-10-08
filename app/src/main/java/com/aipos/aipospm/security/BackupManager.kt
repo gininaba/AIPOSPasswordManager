@@ -90,6 +90,7 @@ class BackupManager {
         val spec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         val keyBytes = factory.generateSecret(spec).encoded
+        spec.clearPassword()
         return SecretKeySpec(keyBytes, ALGORITHM)
     }
 }

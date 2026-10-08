@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Language
@@ -40,7 +41,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -87,10 +90,12 @@ import java.util.Locale
 fun PasswordDetailScreen(
     passwordViewModel: PasswordViewModel,
     passwordId: Int,
+    categoryViewModel: CategoryViewModel? = null,
     onNavigateBack: () -> Unit,
     onNavigateToEdit: (Int) -> Unit
 ) {
     val uiState by passwordViewModel.uiState.collectAsStateWithLifecycle()
+    val categories by (categoryViewModel?.categories?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList()) })
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -305,6 +310,34 @@ fun PasswordDetailScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                                     )
+                                }
+                                val categoryName = remember(categories, entry.categoryId) {
+                                    categories.firstOrNull { it.id == entry.categoryId }?.name
+                                }
+                                if (!categoryName.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Folder,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = categoryName,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
                                 }
                             }
                             if (entry.isFavorite) {

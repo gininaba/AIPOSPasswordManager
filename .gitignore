@@ -14,3 +14,6 @@ app/release/
 # Generated build reports
 report.html
 *.html
+
+# Internal planning documents
+nextplan.md

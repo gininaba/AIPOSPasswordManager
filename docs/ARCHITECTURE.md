@@ -93,20 +93,23 @@ graph TB
 ## 3. Component Breakdown
 
 ### 3.1 UI Layer (`com.aipos.aipospm.ui`)
-- **`MainActivity.kt`**: Single-activity entry point. Configures window insets, Material 3 theme wrapper, biometric prompt handlers, dynamic `WindowManager.LayoutParams.FLAG_SECURE` window binding, decryption cache flushing on lock, and main Scaffold bottom navigation.
+- **`MainActivity.kt`**: Single-activity entry point. Configures window insets, Material 3 theme wrapper, biometric prompt handlers, dynamic `WindowManager.LayoutParams.FLAG_SECURE` window binding, decryption cache flushing on lock, main Scaffold bottom navigation, and Android 14+ `RECEIVER_NOT_EXPORTED` broadcast isolation.
 - **`HomeScreen.kt`**: Vault Health dashboard featuring an animated circular score gauge, quick summary metrics, favorites carousel, and direct action banners for compromised (Red) and reused (Amber) entries.
 - **`PasswordListScreen.kt`**: Passwords list view with search, type-specific category chips, sort modal bottom sheet, visual section headers (`FAVORITES` and `ALL PASSWORDS`), `Compromised (N)` and `Reused (N)` filter chips, swipe-to-delete gesture, and manual custom reordering.
 - **`ApiKeyListScreen.kt`**: Developer interface for API keys with notes, type-specific category filtering, sort bottom sheet, visual section headers, and manual custom reordering.
+- **`AddEditPasswordScreen.kt`**: Credential creation and editing form featuring 1-tap inline password generation with rapid re-roll, automatic unmasking, category quick-creation auto-selection, and a discrete `Tune` options modal trigger.
 - **`CategoryManagerScreen.kt`**: Tabbed category management screen (`[ Passwords ]  [ API Keys ]`) supporting type-isolated category creation, item count badges, in-place renaming, cascading reference clearing, and a "Load Presets" restoration tool.
 - **`IconPickerBottomSheet.kt` & `VaultIconRegistry.kt`**: Curated Material 3 icon selector bottom sheet organized into Developer & Cloud, Services & Web, Security & Devices, and General categories, with fast search and instant preview.
 - **`TrashScreen.kt`**: Full-fledged soft-delete recovery center with dual tabs ("Passwords" & "API Keys"), 30-day auto-purge notices, countdown badges, individual restore/permanent delete, and empty trash actions.
-- **`PasswordDetailScreen.kt` & `ApiKeyDetailScreen.kt`**: Detail screens featuring inline 2FA TOTP live countdown rings, password visibility toggles, strength meters, custom icon display, and edit modals.
+- **`PasswordDetailScreen.kt` & `ApiKeyDetailScreen.kt`**: Detail screens featuring organizational category folder badges, inline 2FA TOTP live countdown rings, password visibility toggles, strength meters, custom icon display, and edit modals.
+- **`PasswordGeneratorScreen.kt`**: Standalone generator with 2-row layout (equal-width Copy and Regenerate buttons; full-width primary "Use This Password" CTA returning generated credentials via `savedStateHandle`).
 - **`SortBottomSheet.kt`**: Material 3 bottom sheet providing 6 vault sort options and a "Keep Favorites on Top" toggle.
 - **`VaultSectionHeader.kt`**: Visual header component cleanly demarcating pinned favorites from regular vault entries with count badges.
 
 ### 3.2 Security Layer (`com.aipos.aipospm.security`)
 - **`CryptoManager.kt`**: Encrypts and decrypts string payloads using **AES-256-GCM** with 128-bit authentication tags and hardware-backed keys stored inside `AndroidKeyStore`.
-- **`MasterPasswordManager.kt`**: Hashes master passwords using **PBKDF2WithHmacSHA256** with 120,000 iterations and a 16-byte random salt. Also manages encrypted preferences including biometric preferences and `FLAG_SECURE` screen privacy toggle (`KEY_SCREEN_SECURITY_ENABLED`).
+- **`MasterPasswordManager.kt`**: Hashes master passwords using **PBKDF2WithHmacSHA256** with 120,000 iterations and a 16-byte random salt. Also manages encrypted preferences, `FLAG_SECURE` screen privacy toggle (`KEY_SCREEN_SECURITY_ENABLED`), and prefix-agnostic emergency recovery key verification (supports keys with or without `AIPOS-`, case-insensitively, with automated hyphen and whitespace normalization).
+- **`QrCodeAnalyzer.kt`**: CameraX image analysis engine with row-stride padding safety (strips non-standard Y-plane padding before luminance creation) and main-thread UI dispatch for 2FA TOTP QR setup.
 - **`BackupManager.kt`**: Generates and parses encrypted JSON backups decoupled from hardware Keystore keys, utilizing a user-specified backup password derived via PBKDF2 (100,000 iterations) + AES-256-GCM.
 - **`PasswordBreachChecker.kt`**: Evaluates passwords locally against a bundled dataset of breached passwords without any network requests.
 - **`TotpHelper.kt`**: Computes time-based one-time passwords (RFC 6238) offline from Base32 secrets.
@@ -146,5 +149,10 @@ graph TB
    - When custom reordering is applied, all sequence updates execute within an atomic `db.withTransaction` block. This reduces disk I/O to a single SQLite commit and triggers Room table invalidation only once, preventing UI stutter.
 6. **Recomposition Guarding**:
    - Category color resolution (`getCategoryColors`) and ID-to-name mapping utilize `remember(categories)` inside `LazyColumn` items to prevent redundant lookup computations during scrolling.
+7. **Decryption Cache Eviction on Database & CSV Restorations**:
+   - Whenever a database backup is restored or a third-party CSV file is imported, `PasswordViewModel` proactively evicts the in-memory session decryption cache (`decryptedPasswordsCache.clear()`). This guarantees newly imported or restored credentials are authenticated and decrypted afresh without stale memory leaks.
+8. **Android 14+ Receiver Isolation**:
+   - In compliance with Android 14 (API 34+) platform requirements, broadcast receivers (such as the screen-off lock receiver in `MainActivity`) specify `ContextCompat.RECEIVER_NOT_EXPORTED` to enforce strict sandboxed isolation from other applications.
+
 
 

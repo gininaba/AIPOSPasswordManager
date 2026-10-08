@@ -63,26 +63,43 @@ class PasswordGeneratorViewModel : ViewModel() {
         generatePassword()
     }
 
-    fun generatePassword() {
+    fun generatePassword(): String {
         val state = _uiState.value
-        val charPool = buildString {
-            if (state.useUppercase) append("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-            if (state.useLowercase) append("abcdefghijklmnopqrstuvwxyz")
-            if (state.useDigits) append("0123456789")
-            if (state.useSymbols) append("!@#\$%^&*()_+-=[]{}|;:',.<>?/~`")
-        }
-
-        if (charPool.isEmpty()) return
-
-        val secureRandom = java.security.SecureRandom()
-        val password = buildString {
-            repeat(state.length) {
-                append(charPool[secureRandom.nextInt(charPool.length)])
-            }
-        }
-
+        val password = generateRandomPassword(
+            length = state.length,
+            useUppercase = state.useUppercase,
+            useLowercase = state.useLowercase,
+            useDigits = state.useDigits,
+            useSymbols = state.useSymbols
+        )
         val strength = evaluateStrength(password)
         _uiState.value = state.copy(generatedPassword = password, strength = strength)
+        return password
+    }
+
+    companion object {
+        private val SECURE_RANDOM = java.security.SecureRandom()
+
+        fun generateRandomPassword(
+            length: Int = 16,
+            useUppercase: Boolean = true,
+            useLowercase: Boolean = true,
+            useDigits: Boolean = true,
+            useSymbols: Boolean = true
+        ): String {
+            val charPool = buildString {
+                if (useUppercase) append("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+                if (useLowercase) append("abcdefghijklmnopqrstuvwxyz")
+                if (useDigits) append("0123456789")
+                if (useSymbols) append("!@#\$%^&*()_+-=[]{}|;:',.<>?/~`")
+            }
+            if (charPool.isEmpty()) return ""
+            return buildString {
+                repeat(length) {
+                    append(charPool[SECURE_RANDOM.nextInt(charPool.length)])
+                }
+            }
+        }
     }
 
     private fun evaluateStrength(password: String): PasswordStrength {

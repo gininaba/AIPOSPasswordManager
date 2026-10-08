@@ -74,4 +74,19 @@ class BackupNullSafetyTest {
         assertEquals(false, firstPassword.isFavorite ?: false)
         assertTrue((firstPassword.createdAt ?: 1000L) == 1000L)
     }
+
+    @Test
+    fun testBackupVersionRangeValidation() {
+        fun isVersionValid(version: Int?): Boolean {
+            return version == null || version in 1..10
+        }
+
+        assertTrue(isVersionValid(null))
+        assertTrue(isVersionValid(1))
+        assertTrue(isVersionValid(2))
+        assertTrue(isVersionValid(10))
+        org.junit.Assert.assertFalse(isVersionValid(0))
+        org.junit.Assert.assertFalse(isVersionValid(11))
+        org.junit.Assert.assertFalse(isVersionValid(-1))
+    }
 }

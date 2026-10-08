@@ -159,7 +159,13 @@ fun AddEditApiKeyScreen(
                 TextButton(
                     onClick = {
                         if (newCatName.trim().isNotEmpty()) {
-                            categoryViewModel.addCategory(newCatName, com.aipos.aipospm.data.CategoryType.API_KEY)
+                            categoryViewModel.addCategory(
+                                name = newCatName.trim(),
+                                type = com.aipos.aipospm.data.CategoryType.API_KEY,
+                                onCreated = { newId ->
+                                    selectedCategoryId = newId
+                                }
+                            )
                             newCatName = ""
                         }
                         showCreateCategoryDialog = false

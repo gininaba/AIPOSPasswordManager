@@ -35,7 +35,7 @@
   <p>
     <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.x-7F52FF?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin Version" /></a>
     <a href="https://developer.android.com"><img src="https://img.shields.io/badge/Android-SDK%2035%2B-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android SDK" /></a>
-    <a href="https://github.com/gininaba/AIPOSPasswordManager/releases"><img src="https://img.shields.io/badge/Release-v1.6.0-blue?style=flat-square" alt="Latest Release" /></a>
+    <a href="https://github.com/gininaba/AIPOSPasswordManager/releases"><img src="https://img.shields.io/badge/Release-v1.6.1-blue?style=flat-square" alt="Latest Release" /></a>
     <a href="https://f-droid.org/packages/com.aipos.aipospm/"><img src="https://img.shields.io/f-droid/v/com.aipos.aipospm?style=flat-square&logo=f-droid&logoColor=white" alt="F-Droid" /></a>
     <a href="https://github.com/gininaba/AIPOSPasswordManager"><img src="https://img.shields.io/badge/Network-100%25%20Offline-success?style=flat-square" alt="100% Offline" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License" /></a>
@@ -59,6 +59,15 @@
 
 ## Features
 
+* **1-Tap Inline Password Generator & Quality-of-Life (v1.6.1)**:
+  * **Instant In-Form Password Generation**: Tap "Generate" directly inside the Add/Edit Password screen to instantly generate a secure, random password in the textfield with automatic unmasking and tactile feedback.
+  * **Frictionless Rapid Re-Roll**: Tap "Generate" repeatedly to re-roll new passwords immediately without leaving the form.
+  * **Discrete Tuning Options**: Dedicated options button (`Tune`) opens the full password generator modal to customize length, character sets (symbols, numbers, uppercase), and entropy strength.
+  * **Redesigned Password Generator Screen**: Features a prominent full-width "Use This Password" primary button with direct state return to credential forms.
+  * **Prefix-Agnostic Emergency Recovery Key**: Master password recovery supports input with or without the `AIPOS-` prefix, case-insensitively, with automated hyphen and whitespace normalization.
+  * **Credential Detail Category Badges**: Live category folder badges displayed directly on both Password and API Key detail views.
+  * **Android 14+ Security Hardening**: Broadcast receivers registered with explicit `RECEIVER_NOT_EXPORTED` flags for strict inter-app isolation.
+  * **CameraX Row Stride Fix**: Robust byte extraction in 2FA QR code scanner handles non-standard camera sensor row paddings.
 * **Instant Vault Startup & Session Decryption Cache**:
   * **Decoupled Fast-Path Pipeline**: Separates the initial password list flow from asynchronous cryptographic audits. Large vaults (200+ passwords) render in less than 15 milliseconds upon unlocking.
   * **Session Decryption Cache**: Thread-safe in-memory cache reuses decrypted values during audit passes to avoid repeated Keystore hardware overhead, automatically flushed from memory when the vault locks or the session expires.

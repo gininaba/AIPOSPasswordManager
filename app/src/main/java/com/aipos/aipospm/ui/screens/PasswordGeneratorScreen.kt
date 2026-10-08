@@ -19,7 +19,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -67,7 +69,8 @@ import kotlin.math.roundToInt
 @Composable
 fun PasswordGeneratorScreen(
     generatorViewModel: PasswordGeneratorViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onUsePassword: ((String) -> Unit)? = null
 ) {
     val uiState by generatorViewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -173,7 +176,11 @@ fun PasswordGeneratorScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         FilledTonalButton(
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -183,6 +190,7 @@ fun PasswordGeneratorScreen(
                                     snackbarHostState.showSnackbar("Password copied (clears in 30s)")
                                 }
                             },
+                            modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(
@@ -190,7 +198,7 @@ fun PasswordGeneratorScreen(
                                 contentDescription = "Copy",
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text("Copy")
                         }
 
@@ -200,6 +208,7 @@ fun PasswordGeneratorScreen(
                                 generatorViewModel.recordCurrentPasswordInHistory()
                                 generatorViewModel.generatePassword()
                             },
+                            modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(
@@ -207,8 +216,29 @@ fun PasswordGeneratorScreen(
                                 contentDescription = "Regenerate",
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text("Regenerate")
+                        }
+                    }
+
+                    if (onUsePassword != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                generatorViewModel.recordCurrentPasswordInHistory()
+                                onUsePassword(uiState.generatedPassword)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Use This Password", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }

@@ -1,6 +1,7 @@
 package com.aipos.aipospm.ui.screens
 
 import com.aipos.aipospm.MainActivity
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +25,9 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.AnimatedVisibility
@@ -92,20 +96,25 @@ import com.aipos.aipospm.security.TotpHelper
 import com.aipos.aipospm.ui.components.CameraPreview
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
+import com.aipos.aipospm.ui.viewmodels.PasswordGeneratorViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditPasswordScreen(
     passwordViewModel: PasswordViewModel,
     categoryViewModel: CategoryViewModel,
+    generatorViewModel: PasswordGeneratorViewModel? = null,
     passwordId: Int?,
+    initialGeneratedPassword: String? = null,
+    onGeneratedPasswordConsumed: (() -> Unit)? = null,
     onNavigateBack: () -> Unit,
-    onNavigateToGenerator: () -> Unit
+    onNavigateToGenerator: (() -> Unit)? = null
 ) {
     val uiState by passwordViewModel.uiState.collectAsStateWithLifecycle()
     val categories by categoryViewModel.passwordCategories.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
 
     var title by rememberSaveable { mutableStateOf("") }
     var username by rememberSaveable { mutableStateOf("") }
@@ -115,6 +124,14 @@ fun AddEditPasswordScreen(
     var selectedCategoryId by rememberSaveable { mutableStateOf<Int?>(null) }
     var isFavorite by rememberSaveable { mutableStateOf(false) }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(initialGeneratedPassword) {
+        if (!initialGeneratedPassword.isNullOrBlank()) {
+            password = initialGeneratedPassword
+            passwordVisible = true
+            onGeneratedPasswordConsumed?.invoke()
+        }
+    }
     val isEditing = passwordId != null && passwordId > 0
     var hasLoadedInitialData by rememberSaveable { mutableStateOf(false) }
     var totpSecret by rememberSaveable { mutableStateOf("") }
@@ -217,7 +234,13 @@ fun AddEditPasswordScreen(
                 TextButton(
                     onClick = {
                         if (newCatName.trim().isNotEmpty()) {
-                            categoryViewModel.addCategory(newCatName, com.aipos.aipospm.data.CategoryType.PASSWORD)
+                            categoryViewModel.addCategory(
+                                name = newCatName.trim(),
+                                type = com.aipos.aipospm.data.CategoryType.PASSWORD,
+                                onCreated = { newId ->
+                                    selectedCategoryId = newId
+                                }
+                            )
                             newCatName = ""
                         }
                         showCreateCategoryDialog = false
@@ -551,17 +574,43 @@ fun AddEditPasswordScreen(
                 }
             }
 
-            TextButton(
-                onClick = onNavigateToGenerator,
-                modifier = Modifier.padding(start = 4.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    imageVector = Icons.Default.Casino,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Generate Password")
+                TextButton(
+                    onClick = {
+                        val newPassword = generatorViewModel?.generatePassword()
+                            ?: PasswordGeneratorViewModel.generateRandomPassword()
+                        password = newPassword
+                        passwordVisible = true
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
+                    modifier = Modifier.padding(start = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Casino,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Generate Password")
+                }
+
+                if (onNavigateToGenerator != null) {
+                    IconButton(
+                        onClick = onNavigateToGenerator,
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = "Customize generator options",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(4.dp))

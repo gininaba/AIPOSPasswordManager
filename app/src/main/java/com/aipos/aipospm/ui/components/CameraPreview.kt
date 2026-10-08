@@ -63,7 +63,9 @@ fun CameraPreview(
                         setAnalyzer(
                             cameraExecutor,
                             QrCodeAnalyzer { qrCode ->
-                                onQrCodeScanned(qrCode)
+                                ContextCompat.getMainExecutor(context).execute {
+                                    onQrCodeScanned(qrCode)
+                                }
                             }
                         )
                     }

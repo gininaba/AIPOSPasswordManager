@@ -178,10 +178,19 @@ fun NavGraph(
             )
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getInt("id") ?: -1
+            val returnedPassword by backStackEntry.savedStateHandle
+                .getStateFlow<String?>("generated_password", null)
+                .collectAsStateWithLifecycle()
+
             AddEditPasswordScreen(
                 passwordViewModel = passwordViewModel,
                 categoryViewModel = categoryViewModel,
+                generatorViewModel = generatorViewModel,
                 passwordId = if (id > 0) id else null,
+                initialGeneratedPassword = returnedPassword,
+                onGeneratedPasswordConsumed = {
+                    backStackEntry.savedStateHandle.remove<String>("generated_password")
+                },
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToGenerator = {
                     navController.navigate(Screen.PasswordGenerator.route)
@@ -219,6 +228,7 @@ fun NavGraph(
             PasswordDetailScreen(
                 passwordViewModel = passwordViewModel,
                 passwordId = id,
+                categoryViewModel = categoryViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToEdit = { editId ->
                     navController.navigate(Screen.AddEditPassword.createRoute(editId))
@@ -237,6 +247,7 @@ fun NavGraph(
             ApiKeyDetailScreen(
                 apiKeyViewModel = apiKeyViewModel,
                 apiKeyId = id,
+                categoryViewModel = categoryViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToEdit = { editId ->
                     navController.navigate(Screen.AddEditApiKey.createRoute(editId))
@@ -248,7 +259,11 @@ fun NavGraph(
         composable(Screen.PasswordGenerator.route) {
             PasswordGeneratorScreen(
                 generatorViewModel = generatorViewModel,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onUsePassword = { selectedPassword ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set("generated_password", selectedPassword)
+                    navController.popBackStack()
+                }
             )
         }
 

@@ -143,6 +143,7 @@ class MasterPasswordManager(context: Context) {
         val spec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         val hash = factory.generateSecret(spec).encoded
+        spec.clearPassword()
         return Base64.encodeToString(hash, Base64.NO_WRAP)
     }
 
@@ -195,6 +196,7 @@ class MasterPasswordManager(context: Context) {
 
     /**
      * Verify the entered recovery key against the stored PBKDF2 hash.
+     * Supports keys entered with or without the 'AIPOS-' prefix for robust recovery.
      */
     fun verifyRecoveryKey(key: String): Boolean {
         val storedHash = prefs.getString(KEY_RECOVERY_KEY_HASH, null) ?: return false
@@ -202,8 +204,26 @@ class MasterPasswordManager(context: Context) {
         val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
         
         val cleanKey = cleanRecoveryKey(key)
+        if (cleanKey.isBlank()) return false
+
+        // 1. Direct hash check
         val inputHash = hashPassword(cleanKey, salt)
-        return storedHash == inputHash
+        if (storedHash == inputHash) return true
+
+        // 2. If entered without "AIPOS" prefix, test with "AIPOS" prepended
+        if (!cleanKey.startsWith("AIPOS")) {
+            val hashWithPrefix = hashPassword("AIPOS$cleanKey", salt)
+            if (storedHash == hashWithPrefix) return true
+        }
+
+        // 3. If entered with "AIPOS" prefix, test with "AIPOS" stripped
+        if (cleanKey.startsWith("AIPOS")) {
+            val stripped = cleanKey.removePrefix("AIPOS")
+            val hashStripped = hashPassword(stripped, salt)
+            if (storedHash == hashStripped) return true
+        }
+
+        return false
     }
 
     /**
@@ -215,7 +235,7 @@ class MasterPasswordManager(context: Context) {
         return true
     }
 
-    private fun cleanRecoveryKey(key: String): String {
-        return key.replace("-", "").replace(" ", "").uppercase()
+    internal fun cleanRecoveryKey(key: String): String {
+        return key.replace("-", "").filterNot { it.isWhitespace() }.uppercase()
     }
 }
