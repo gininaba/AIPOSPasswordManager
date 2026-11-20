@@ -1,15 +1,26 @@
 *.iml
 .gradle
-/local.properties
+local.properties
 .idea/
 .DS_Store
 /build
 /captures
 .externalNativeBuild
 .cxx
-local.properties
 app/release/
 .vscode/
+
+# Signing keys & credentials
+*.jks
+*.keystore
+*.p12
+*.pem
+key.properties
+
+# Loose Android build outputs
+*.apk
+*.aab
+*.idsig
 
 # Generated build reports
 report.html
