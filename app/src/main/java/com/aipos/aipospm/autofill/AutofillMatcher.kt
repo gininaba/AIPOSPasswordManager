@@ -1,12 +1,13 @@
 package com.aipos.aipospm.autofill
 
+import android.content.Context
 import com.aipos.aipospm.data.PasswordEntry
 import java.net.URI
 import java.util.Locale
 
 /**
- * Intelligent credential matching engine for Android Autofill.
- * Matches active vault credentials against web domains (browser contexts)
+ * Intelligent credential matching engine for Android Autofill and Credential Manager.
+ * Matches active fillable vault credentials against web domains (browser contexts)
  * and Android package names (native app contexts).
  */
 object AutofillMatcher {
@@ -35,18 +36,21 @@ object AutofillMatcher {
     )
 
     /**
+     * Returns true when an entry contains at least a username or an encrypted password
+     * (filters out Note-only vault entries from autofill suggestions).
+     */
+    fun isFillableCredential(entry: PasswordEntry): Boolean {
+        return entry.username.isNotBlank() || entry.encryptedPassword.isNotBlank()
+    }
+
+    /**
      * Extracts a normalized, clean host domain from a URL or raw domain string.
-     * Examples:
-     * - "https://www.github.com/login" -> "github.com"
-     * - "accounts.google.com" -> "google.com"
-     * - "https://sub.example.co.uk:8080/path" -> "example.co.uk"
      */
     fun extractCleanDomain(rawUrlOrDomain: String): String {
         if (rawUrlOrDomain.isBlank()) return ""
 
         var candidate = rawUrlOrDomain.trim().lowercase(Locale.ROOT)
 
-        // Ensure scheme is present for URI parsing
         if (!candidate.startsWith("http://") && !candidate.startsWith("https://")) {
             candidate = "https://$candidate"
         }
@@ -62,7 +66,6 @@ object AutofillMatcher {
 
         var cleanHost = host.lowercase(Locale.ROOT).trim()
 
-        // Strip known subdomain prefixes
         for (prefix in SUBDOMAIN_PREFIXES) {
             if (cleanHost.startsWith(prefix) && cleanHost.length > prefix.length) {
                 cleanHost = cleanHost.removePrefix(prefix)
@@ -94,14 +97,80 @@ object AutofillMatcher {
     }
 
     /**
+     * Derives a clean human-readable entry title from a web domain, app label, or package name.
+     * Example: "accounts.github.com" -> "Github", "com.spotify.music" -> "Spotify".
+     */
+    fun deriveDefaultTitle(
+        webDomain: String?,
+        packageName: String?,
+        appLabel: String? = null
+    ): String {
+        if (!webDomain.isNullOrBlank()) {
+            val clean = extractCleanDomain(webDomain)
+            val base = clean.substringBefore('.').trim()
+            if (base.isNotEmpty()) {
+                return base.replaceFirstChar { it.titlecase(Locale.ROOT) }
+            }
+            return clean
+        }
+
+        if (!appLabel.isNullOrBlank()) {
+            return appLabel.trim()
+        }
+
+        if (!packageName.isNullOrBlank()) {
+            val firstToken = extractPackageTokens(packageName).firstOrNull()
+            if (!firstToken.isNullOrBlank()) {
+                return firstToken.replaceFirstChar { it.titlecase(Locale.ROOT) }
+            }
+            return packageName.substringAfterLast('.').replaceFirstChar { it.titlecase(Locale.ROOT) }
+        }
+
+        return "Saved Login"
+    }
+
+    /**
+     * Resolves a human-readable context label (clean domain or installed app label)
+     * for display in Google-style autofill bottom sheets.
+     */
+    fun resolveDisplayTarget(
+        context: Context,
+        webDomain: String?,
+        packageName: String?
+    ): String? {
+        if (!webDomain.isNullOrBlank()) {
+            return extractCleanDomain(webDomain).ifBlank { webDomain }
+        }
+        if (!packageName.isNullOrBlank()) {
+            val label = resolveAppLabel(context, packageName)
+            if (!label.isNullOrBlank()) return label
+            return packageName
+        }
+        return null
+    }
+
+    fun resolveAppLabel(context: Context, packageName: String?): String? {
+        if (packageName.isNullOrBlank()) return null
+        return try {
+            val pm = context.packageManager
+            val appInfo = pm.getApplicationInfo(packageName, 0)
+            pm.getApplicationLabel(appInfo).toString().takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * Scores a credential entry against the target context.
-     * Returns 0 if no match.
+     * Returns 0 if no match or if the entry is not a fillable credential.
      */
     fun scoreEntry(
         entry: PasswordEntry,
         webDomain: String?,
         packageTokens: List<String>
     ): Int {
+        if (!isFillableCredential(entry)) return 0
+
         val entryUrlDomain = extractCleanDomain(entry.url)
         val entryTitleClean = entry.title.lowercase(Locale.ROOT).trim()
 
@@ -113,18 +182,19 @@ object AutofillMatcher {
 
             if (entryUrlDomain.isNotBlank() && targetCleanDomain.isNotBlank()) {
                 if (entryUrlDomain == targetCleanDomain) {
-                    bestScore = maxOf(bestScore, 100) // Exact domain match
+                    bestScore = maxOf(bestScore, 100)
                 } else if (entryUrlDomain.endsWith(".$targetCleanDomain") || targetCleanDomain.endsWith(".$entryUrlDomain")) {
-                    bestScore = maxOf(bestScore, 85) // Subdomain / related domain match
+                    bestScore = maxOf(bestScore, 85)
                 }
             }
 
-            // Check if entry title matches web domain base
             val baseDomainName = targetCleanDomain.substringBefore('.')
-            if (baseDomainName.length > 2) {
+            if (baseDomainName.length > 2 && entryTitleClean.isNotEmpty()) {
                 if (entryTitleClean == baseDomainName) {
                     bestScore = maxOf(bestScore, 75)
-                } else if (entryTitleClean.contains(baseDomainName) || baseDomainName.contains(entryTitleClean)) {
+                } else if (entryTitleClean.contains(baseDomainName) ||
+                    (entryTitleClean.length >= 4 && baseDomainName.contains(entryTitleClean))
+                ) {
                     bestScore = maxOf(bestScore, 50)
                 }
             }
@@ -132,16 +202,20 @@ object AutofillMatcher {
 
         // 2. Android Package Token Matching
         for (token in packageTokens) {
-            if (entryTitleClean == token) {
-                bestScore = maxOf(bestScore, 80) // Exact title match with app name
-            } else if (entryTitleClean.contains(token) || token.contains(entryTitleClean)) {
-                bestScore = maxOf(bestScore, 60) // Partial title match
+            if (entryTitleClean.isNotEmpty()) {
+                if (entryTitleClean == token) {
+                    bestScore = maxOf(bestScore, 80)
+                } else if (entryTitleClean.contains(token) ||
+                    (entryTitleClean.length >= 4 && token.contains(entryTitleClean))
+                ) {
+                    bestScore = maxOf(bestScore, 60)
+                }
             }
 
             if (entryUrlDomain.isNotBlank()) {
                 val baseEntryDomain = entryUrlDomain.substringBefore('.')
                 if (baseEntryDomain == token || entryUrlDomain.contains(token)) {
-                    bestScore = maxOf(bestScore, 70) // Entry URL contains app package token
+                    bestScore = maxOf(bestScore, 70)
                 }
             }
         }
@@ -150,20 +224,32 @@ object AutofillMatcher {
     }
 
     /**
-     * Finds and ranks matching credentials for an autofill request.
+     * Finds and ranks matching fillable credentials for an autofill or Credential Manager request.
+     * Avoids matching against raw browser package tokens when no webDomain was provided.
      */
     fun findMatches(
         entries: List<PasswordEntry>,
         webDomain: String?,
         packageName: String?
     ): List<PasswordEntry> {
-        val packageTokens = packageName?.let { extractPackageTokens(it) } ?: emptyList()
+        val isTrustedBrowserWithoutDomain =
+            webDomain.isNullOrBlank() &&
+                !packageName.isNullOrBlank() &&
+                packageName in AutofillStructureParser.TRUSTED_BROWSER_PACKAGES
+
+        val packageTokens = if (isTrustedBrowserWithoutDomain) {
+            emptyList()
+        } else {
+            packageName?.let { extractPackageTokens(it) } ?: emptyList()
+        }
 
         if (webDomain.isNullOrBlank() && packageTokens.isEmpty()) {
             return emptyList()
         }
 
         return entries
+            .asSequence()
+            .filter { isFillableCredential(it) }
             .map { entry -> entry to scoreEntry(entry, webDomain, packageTokens) }
             .filter { it.second > 0 }
             .sortedWith(
@@ -171,5 +257,6 @@ object AutofillMatcher {
                     .thenByDescending { it.first.updatedAt }
             )
             .map { it.first }
+            .toList()
     }
 }

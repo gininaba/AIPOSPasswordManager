@@ -20,6 +20,8 @@ class CryptoManager {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val GCM_TAG_LENGTH = 128
+
+        val shared: CryptoManager by lazy { CryptoManager() }
     }
 
     @Volatile

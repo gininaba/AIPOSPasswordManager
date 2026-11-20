@@ -26,11 +26,13 @@ import com.aipos.aipospm.ui.screens.PasswordListScreen
 import com.aipos.aipospm.ui.screens.SetupScreen
 import com.aipos.aipospm.ui.screens.SettingsScreen
 import com.aipos.aipospm.ui.screens.CategoryManagerScreen
+import com.aipos.aipospm.ui.screens.PasskeysScreen
 import com.aipos.aipospm.ui.viewmodels.ApiKeyViewModel
 import com.aipos.aipospm.ui.viewmodels.AuthViewModel
+import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
+import com.aipos.aipospm.ui.viewmodels.PasskeyViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordGeneratorViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
-import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 
 @Composable
 fun NavGraph(
@@ -40,6 +42,7 @@ fun NavGraph(
     passwordViewModel: PasswordViewModel,
     apiKeyViewModel: ApiKeyViewModel,
     categoryViewModel: CategoryViewModel,
+    passkeyViewModel: PasskeyViewModel,
     generatorViewModel: PasswordGeneratorViewModel,
     canUseBiometric: Boolean,
     onBiometricAuth: () -> Unit
@@ -116,6 +119,7 @@ fun NavGraph(
                 passwordViewModel = passwordViewModel,
                 apiKeyViewModel = apiKeyViewModel,
                 categoryViewModel = categoryViewModel,
+                passkeyViewModel = passkeyViewModel,
                 onNavigateToSettings = {
                     navController.navigate(Screen.Settings.route)
                 },
@@ -133,6 +137,9 @@ fun NavGraph(
                 },
                 onNavigateToPasswordGenerator = {
                     navController.navigate(Screen.PasswordGenerator.route)
+                },
+                onNavigateToPasskeys = {
+                    navController.navigate(Screen.Passkeys.route)
                 }
             )
         }
@@ -178,9 +185,7 @@ fun NavGraph(
             )
         ) { backStackEntry ->
             val id = backStackEntry.arguments?.getInt("id") ?: -1
-            val returnedPassword by backStackEntry.savedStateHandle
-                .getStateFlow<String?>("generated_password", null)
-                .collectAsStateWithLifecycle()
+            val returnedPassword by generatorViewModel.pendingGeneratedPassword.collectAsStateWithLifecycle()
 
             AddEditPasswordScreen(
                 passwordViewModel = passwordViewModel,
@@ -189,7 +194,7 @@ fun NavGraph(
                 passwordId = if (id > 0) id else null,
                 initialGeneratedPassword = returnedPassword,
                 onGeneratedPasswordConsumed = {
-                    backStackEntry.savedStateHandle.remove<String>("generated_password")
+                    generatorViewModel.consumePendingGeneratedPassword()
                 },
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToGenerator = {
@@ -261,7 +266,7 @@ fun NavGraph(
                 generatorViewModel = generatorViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onUsePassword = { selectedPassword ->
-                    navController.previousBackStackEntry?.savedStateHandle?.set("generated_password", selectedPassword)
+                    generatorViewModel.selectGeneratedPassword(selectedPassword)
                     navController.popBackStack()
                 }
             )
@@ -274,6 +279,7 @@ fun NavGraph(
                 passwordViewModel = passwordViewModel,
                 apiKeyViewModel = apiKeyViewModel,
                 categoryViewModel = categoryViewModel,
+                passkeyViewModel = passkeyViewModel,
                 canUseBiometric = canUseBiometric,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToManageCategories = {
@@ -298,6 +304,15 @@ fun NavGraph(
             com.aipos.aipospm.ui.screens.TrashScreen(
                 passwordViewModel = passwordViewModel,
                 apiKeyViewModel = apiKeyViewModel,
+                passkeyViewModel = passkeyViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // Passkeys
+        composable(Screen.Passkeys.route) {
+            PasskeysScreen(
+                passkeyViewModel = passkeyViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

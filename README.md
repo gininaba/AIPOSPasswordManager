@@ -59,6 +59,12 @@
 
 ## Features
 
+* **Google-Style Autofill, 100% Offline Passkeys & Universal Vault Migration (v1.7.0-beta.1)**:
+  * **Google Password Manager-Style Autofill**: Android 11+ keyboard inline suggestion chips (`Gboard`, `Samsung Keyboard`, `SwiftKey`, etc.) with 1-tap biometric fill, Material 3 bottom-sheet vault picker & unlock flow, Day/Night dropdown cards, inline **Suggest strong password** on sign-up forms (fills both password & confirm fields and saves to vault), **Save / Update Password** bottom sheet (`onSaveRequest`), and automatic **2FA TOTP auto-copy** (30s auto-clear) on fill.
+  * **100% Offline Android 14+ Passkey & Password Provider**: System-wide WebAuthn / FIDO2 ES256 (P-256) Passkey provider and unified `CredentialManager` Password provider—requiring **zero `INTERNET` or `BLUETOOTH` permissions**, complete with Passkey vault management, Trash recovery, and encrypted Backup v7 export/import.
+  * **Universal Bitwarden JSON & Multi-Language CSV Migration**: Direct import of Bitwarden unencrypted `.json` exports (Logins, Secure Notes, Folders, TOTP, Favorites) alongside UTF-8 BOM-hardened multi-language CSV imports (English, Russian, German, French, Spanish) with clear encrypted-export guidance.
+  * **Flexible Notes, PINs & Smart Security Audits**: Username and Password fields are now optional (only Title is required) for backup codes and secure notes; blank passwords and non-weak 4–5 digit PINs are no longer falsely flagged as Compromised, with a per-entry **"Ignore security warnings"** toggle.
+  * **Security & Stability Hardening**: 210,000-iteration PBKDF2 backups, brute-force master-password lockout backoff, `BIOMETRIC_STRONG` enforcement, monotonic auto-lock timing, and zero plaintext secrets in saved instance state.
 * **1-Tap Inline Password Generator & Quality-of-Life (v1.6.1)**:
   * **Instant In-Form Password Generation**: Tap "Generate" directly inside the Add/Edit Password screen to instantly generate a secure, random password in the textfield with automatic unmasking and tactile feedback.
   * **Frictionless Rapid Re-Roll**: Tap "Generate" repeatedly to re-roll new passwords immediately without leaving the form.
@@ -120,7 +126,7 @@
   * **EncryptedSharedPreferences** for secure storage of cryptographic salts and app preferences.
   * Native **Biometric Prompt** support (`BIOMETRIC_STRONG` for fingerprint and 3D face unlock).
   * **Emergency Recovery Key**: 16-character alphanumeric key (`AIPOS-XXXX-XXXX-XXXX-XXXX`) for emergency vault reset if the master password is lost.
-* **Portable Encrypted Backups & CSV Importers**: Export and import encrypted JSON backups decoupled from device hardware keys using PBKDF2 (10,000 iterations) + AES-256-GCM. Direct CSV imports supported for Bitwarden, KeePass, and 1Password.
+* **Portable Encrypted Backups & CSV Importers**: Export and import encrypted JSON backups decoupled from device hardware keys using PBKDF2 (210,000 iterations) + AES-256-GCM. Direct CSV imports supported for Bitwarden, KeePass, and 1Password.
 * **Auto-Lock Timeout**: Configurable inactivity timers (Immediately, 30s, 1m, 5m, 10m, Never) to keep credentials protected when backgrounded.
 * **100% Offline & Private**: Zero network permissions declared in `AndroidManifest.xml`. Your data never leaves your device.
 
@@ -248,7 +254,7 @@ AIPOS Password Manager is fully compliant with the F-Droid inclusion policy. You
 ### Prerequisites
 
 * Android Studio Koala / Ladybug or newer
-* Android SDK 35+ (Minimum SDK 26)
+* Android SDK 35+ (Minimum SDK 24; Autofill Service requires API 26+)
 * JDK 17
 
 ### Building the Project
@@ -338,8 +344,8 @@ With an active emulator or connected USB device:
 |---|---|---|
 | **Encryption at Rest** | AES-256-GCM | 256-bit key in Android Keystore, 12-byte random IV per entry, 128-bit auth tag |
 | **Key Management** | Android Keystore | Hardware-backed cryptographic keys (TEE / StrongBox when available) |
-| **Master Authentication** | PBKDF2WithHmacSHA256 | 120,000 iterations + 16-byte cryptographically secure random salt |
-| **Backup Encryption** | PBKDF2 + AES-256-GCM | 10,000 iterations for backup key derivation using user password |
+| **Master Authentication** | PBKDF2WithHmacSHA256 | 120,000 iterations + 32-byte cryptographically secure random salt |
+| **Backup Encryption** | PBKDF2 + AES-256-GCM | 210,000 iterations for backup key derivation using user password (backward-compatible with 100,000-iteration backups) |
 | **Secure Preferences** | EncryptedSharedPreferences | Keys encrypted using AES256_SIV, values using AES256_GCM |
 | **Biometric Security** | AndroidX Biometric API | Enforces `BIOMETRIC_STRONG` (hardware fingerprint or 3D face unlock) |
 | **Screen Privacy** | WindowManager `FLAG_SECURE` | Blocks OS screenshots, screen recording, and Recent Apps task previews |

@@ -63,6 +63,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -92,6 +93,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.filled.QrCodeScanner
+import com.aipos.aipospm.passkey.WebAuthnCrypto
 import com.aipos.aipospm.security.TotpHelper
 import com.aipos.aipospm.ui.components.CameraPreview
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
@@ -118,12 +120,12 @@ fun AddEditPasswordScreen(
 
     var title by rememberSaveable { mutableStateOf("") }
     var username by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var url by rememberSaveable { mutableStateOf("") }
-    var notes by rememberSaveable { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
     var selectedCategoryId by rememberSaveable { mutableStateOf<Int?>(null) }
     var isFavorite by rememberSaveable { mutableStateOf(false) }
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(initialGeneratedPassword) {
         if (!initialGeneratedPassword.isNullOrBlank()) {
@@ -133,10 +135,12 @@ fun AddEditPasswordScreen(
         }
     }
     val isEditing = passwordId != null && passwordId > 0
-    var hasLoadedInitialData by rememberSaveable { mutableStateOf(false) }
-    var totpSecret by rememberSaveable { mutableStateOf("") }
+    var hasLoadedInitialData by remember { mutableStateOf(false) }
+    var totpSecret by remember { mutableStateOf("") }
     var showTotpField by rememberSaveable { mutableStateOf(false) }
     var showScanner by remember { mutableStateOf(false) }
+    var scannedFidoUri by remember { mutableStateOf<String?>(null) }
+    var excludeFromAudit by rememberSaveable { mutableStateOf(false) }
     var iconId by rememberSaveable { mutableStateOf<String?>(null) }
     var showIconPicker by rememberSaveable { mutableStateOf(false) }
     val iconPickerSheetState = rememberModalBottomSheetState()
@@ -190,6 +194,7 @@ fun AddEditPasswordScreen(
                 selectedCategoryId = entry.categoryId
                 isFavorite = entry.isFavorite
                 iconId = entry.icon
+                excludeFromAudit = entry.excludeFromAudit
                 // Populate TOTP secret if present
                 val decryptedTotp = uiState.decryptedTotpSecret
                 if (decryptedTotp.isNotEmpty()) {
@@ -525,7 +530,8 @@ fun AddEditPasswordScreen(
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text("Username / Email *") },
+                label = { Text("Username / Email") },
+                placeholder = { Text("Optional — leave blank for notes or PINs") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
@@ -536,7 +542,8 @@ fun AddEditPasswordScreen(
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("Password *") },
+                label = { Text("Password") },
+                placeholder = { Text("Optional — leave blank for note-only entries") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = if (passwordVisible) VisualTransformation.None
@@ -553,8 +560,8 @@ fun AddEditPasswordScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
-            // Password breach checker alert
-            if (password.isNotEmpty() && isPasswordBreached) {
+            // Password breach checker alert (hidden if entry is excluded from security audit)
+            if (password.isNotEmpty() && isPasswordBreached && !excludeFromAudit) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 4.dp, start = 4.dp)
@@ -571,6 +578,43 @@ fun AddEditPasswordScreen(
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+            }
+
+            if (password.isNotBlank()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Ignore Security Warnings",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Exclude fixed PINs or unchangeable codes from Compromised/Reused alerts",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(
+                            checked = excludeFromAudit,
+                            onCheckedChange = { excludeFromAudit = it }
+                        )
+                    }
                 }
             }
 
@@ -735,7 +779,7 @@ fun AddEditPasswordScreen(
 
             Button(
                 onClick = {
-                    if (title.isBlank() || username.isBlank() || password.isBlank()) {
+                    if (title.isBlank()) {
                         return@Button
                     }
                     passwordViewModel.savePassword(
@@ -748,20 +792,21 @@ fun AddEditPasswordScreen(
                         categoryId = selectedCategoryId,
                         isFavorite = isFavorite,
                         totpSecret = totpSecret.trim().ifBlank { null },
-                        icon = iconId
+                        icon = iconId,
+                        excludeFromAudit = excludeFromAudit
                     )
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
                 shape = RoundedCornerShape(16.dp),
-                enabled = title.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
+                enabled = title.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
                 )
             ) {
                 Text(
-                    text = if (isEditing) "Update Password" else "Save Password",
+                    text = if (isEditing) "Update Entry" else "Save Entry",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -784,6 +829,7 @@ fun AddEditPasswordScreen(
                 ) {
                     CameraPreview(
                         onQrCodeScanned = { qrResult ->
+                            if (!showScanner) return@CameraPreview
                             val parsed = parseOtpAuthUri(qrResult)
                             if (parsed != null) {
                                 val (secret, issuer, label) = parsed
@@ -797,6 +843,9 @@ fun AddEditPasswordScreen(
                                         username = label
                                     }
                                 }
+                                showScanner = false
+                            } else if (WebAuthnCrypto.isFidoQrUri(qrResult)) {
+                                scannedFidoUri = qrResult.trim()
                                 showScanner = false
                             } else {
                                 if (TotpHelper.isValidBase32(qrResult)) {
@@ -813,6 +862,46 @@ fun AddEditPasswordScreen(
             dismissButton = {
                 TextButton(onClick = { showScanner = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    scannedFidoUri?.let { fidoUri ->
+        AlertDialog(
+            onDismissRequest = { scannedFidoUri = null },
+            title = { Text("FIDO2 / Passkey QR Detected") },
+            text = {
+                Text(
+                    text = "This is a cross-device FIDO2/Passkey QR code (CTAP2 Hybrid Transport), which requires Bluetooth and an active Internet relay connection.\n\n" +
+                        "AIPOS stays 100% offline with zero network permissions. On Android 14+, you can sign in with AIPOS Passkeys directly in mobile browsers and apps via Settings > Passkey Provider.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        try {
+                            MainActivity.setExpectingExternalActivity(true)
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(fidoUri)
+                            )
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("No system FIDO2 QR handler installed on this device")
+                            }
+                        }
+                        scannedFidoUri = null
+                    }
+                ) {
+                    Text("Open with System")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { scannedFidoUri = null }) {
+                    Text("Close")
                 }
             }
         )

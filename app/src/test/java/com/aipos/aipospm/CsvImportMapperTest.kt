@@ -63,4 +63,18 @@ class CsvImportMapperTest {
         assertEquals(null, entry.categoryName)
         assertEquals(false, entry.isFavorite)
     }
+
+    @Test
+    fun testPasswordWhitespacePreservedAndBomHandled() {
+        val rows = listOf(
+            listOf("\uFEFFTitle", "Username", "Password"),
+            listOf("  SpacesSite  ", "  user@example.com  ", "  leadAndTrailSpace  ")
+        )
+
+        val mapped = CsvImportMapper.map(rows)
+        assertEquals(1, mapped.size)
+        assertEquals("SpacesSite", mapped[0].title)
+        assertEquals("user@example.com", mapped[0].username)
+        assertEquals("  leadAndTrailSpace  ", mapped[0].password)
+    }
 }

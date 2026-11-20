@@ -17,30 +17,35 @@ import javax.crypto.spec.SecretKeySpec
 class BackupManager {
 
     companion object {
-        private const val PBKDF2_ITERATIONS = 100_000
+        private const val LEGACY_PBKDF2_ITERATIONS = 100_000
+        private const val DEFAULT_PBKDF2_ITERATIONS = 210_000
+        private const val MIN_PBKDF2_ITERATIONS = 10_000
+        private const val MAX_PBKDF2_ITERATIONS = 1_000_000
         private const val KEY_LENGTH = 256
         private const val GCM_TAG_LENGTH = 128
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val ALGORITHM = "AES"
-    }
 
-    private val gson = Gson()
+        private val SECURE_RANDOM = SecureRandom()
+        private val SHARED_GSON = Gson()
+        val shared: BackupManager by lazy { BackupManager() }
+    }
 
     /**
      * Encrypts the given database JSON payload with the provided password.
-     * @return A JSON string containing base64-encoded salt, iv, and ciphertext.
+     * @return A JSON string containing base64-encoded salt, iv, iterations, and ciphertext.
      */
     fun encryptBackup(payloadJson: String, password: String): String {
         // Generate random 16-byte salt
         val salt = ByteArray(16)
-        SecureRandom().nextBytes(salt)
+        SECURE_RANDOM.nextBytes(salt)
 
         // Derive key from password
-        val key = deriveKey(password, salt)
+        val key = deriveKey(password, salt, DEFAULT_PBKDF2_ITERATIONS)
 
         // Generate explicit 12-byte random IV for GCM
         val iv = ByteArray(12)
-        SecureRandom().nextBytes(iv)
+        SECURE_RANDOM.nextBytes(iv)
         val spec = GCMParameterSpec(GCM_TAG_LENGTH, iv)
 
         // Setup AES/GCM Cipher
@@ -51,12 +56,13 @@ class BackupManager {
 
         // Create backup object
         val backupObj = JsonObject().apply {
+            addProperty("iterations", DEFAULT_PBKDF2_ITERATIONS)
             addProperty("salt", Base64.encodeToString(salt, Base64.NO_WRAP))
             addProperty("iv", Base64.encodeToString(iv, Base64.NO_WRAP))
             addProperty("ciphertext", Base64.encodeToString(encryptedBytes, Base64.NO_WRAP))
         }
 
-        return gson.toJson(backupObj)
+        return SHARED_GSON.toJson(backupObj)
     }
 
     /**
@@ -64,18 +70,23 @@ class BackupManager {
      * @return The original decrypted JSON payload.
      */
     fun decryptBackup(backupJson: String, password: String): String {
-        val backupObj = gson.fromJson(backupJson, JsonObject::class.java)
+        val backupObj = SHARED_GSON.fromJson(backupJson, JsonObject::class.java)
+            ?: throw IllegalArgumentException("Invalid backup format")
         
         val saltBase64 = backupObj.get("salt")?.asString ?: throw IllegalArgumentException("Missing salt")
         val ivBase64 = backupObj.get("iv")?.asString ?: throw IllegalArgumentException("Missing iv")
         val ciphertextBase64 = backupObj.get("ciphertext")?.asString ?: throw IllegalArgumentException("Missing ciphertext")
+        val iterations = backupObj.get("iterations")?.asInt ?: LEGACY_PBKDF2_ITERATIONS
+        if (iterations !in MIN_PBKDF2_ITERATIONS..MAX_PBKDF2_ITERATIONS) {
+            throw IllegalArgumentException("Unsupported PBKDF2 iteration count")
+        }
 
         val salt = Base64.decode(saltBase64, Base64.NO_WRAP)
         val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
         val ciphertext = Base64.decode(ciphertextBase64, Base64.NO_WRAP)
 
         // Derive key from password
-        val key = deriveKey(password, salt)
+        val key = deriveKey(password, salt, iterations)
 
         // Setup AES/GCM Cipher
         val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -86,8 +97,8 @@ class BackupManager {
         return String(decryptedBytes, Charsets.UTF_8)
     }
 
-    private fun deriveKey(password: String, salt: ByteArray): SecretKeySpec {
-        val spec = PBEKeySpec(password.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH)
+    private fun deriveKey(password: String, salt: ByteArray, iterations: Int): SecretKeySpec {
+        val spec = PBEKeySpec(password.toCharArray(), salt, iterations, KEY_LENGTH)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
         val keyBytes = factory.generateSecret(spec).encoded
         spec.clearPassword()

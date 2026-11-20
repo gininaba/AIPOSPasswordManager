@@ -3,6 +3,7 @@ package com.aipos.aipospm
 import com.aipos.aipospm.autofill.AutofillMatcher
 import com.aipos.aipospm.data.PasswordEntry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -125,5 +126,75 @@ class AutofillMatcherTest {
         // Exact URL match (score 100) must rank ahead of title-only match (score 75/50)
         assertEquals(1, matches[0].id)
         assertEquals(2, matches[1].id)
+    }
+
+    @Test
+    fun testShortTitlesDoNotFalselyMatchUnrelatedDomainsOrPackages() {
+        val shortEntries = listOf(
+            PasswordEntry(id = 1, title = "a", username = "u1", encryptedPassword = "enc", iv = "iv"),
+            PasswordEntry(id = 2, title = "go", username = "u2", encryptedPassword = "enc", iv = "iv"),
+            PasswordEntry(id = 3, title = "in", username = "u3", encryptedPassword = "enc", iv = "iv")
+        )
+
+        assertTrue(AutofillMatcher.findMatches(shortEntries, "amazon.com", null).isEmpty())
+        assertTrue(AutofillMatcher.findMatches(shortEntries, "google.com", null).isEmpty())
+        assertTrue(AutofillMatcher.findMatches(shortEntries, "linkedin.com", null).isEmpty())
+        assertTrue(AutofillMatcher.findMatches(shortEntries, null, "com.instagram.android").isEmpty())
+    }
+
+    @Test
+    fun testNoteOnlyEntriesAreExcludedFromAutofill() {
+        val secureNote = PasswordEntry(
+            id = 50,
+            title = "GitHub Recovery Codes",
+            username = "",
+            encryptedPassword = "",
+            iv = "",
+            url = "https://github.com",
+            notes = "backup-code-1234"
+        )
+        val loginEntry = PasswordEntry(
+            id = 51,
+            title = "GitHub",
+            username = "dev@github.com",
+            encryptedPassword = "enc",
+            iv = "iv",
+            url = "https://github.com"
+        )
+
+        assertFalse(AutofillMatcher.isFillableCredential(secureNote))
+        assertTrue(AutofillMatcher.isFillableCredential(loginEntry))
+
+        val matches = AutofillMatcher.findMatches(listOf(secureNote, loginEntry), "github.com", null)
+        assertEquals(1, matches.size)
+        assertEquals(51, matches[0].id)
+    }
+
+    @Test
+    fun testBrowserPackageWithoutDomainDoesNotFalseMatch() {
+        val braveEntry = PasswordEntry(
+            id = 60,
+            title = "Brave Rewards",
+            username = "user@brave.com",
+            encryptedPassword = "enc",
+            iv = "iv",
+            url = "https://brave.com"
+        )
+
+        // When Chrome/Brave triggers without a webDomain, do not match the browser's own package tokens
+        val matches = AutofillMatcher.findMatches(listOf(braveEntry), null, "com.brave.browser")
+        assertTrue(matches.isEmpty())
+
+        // When webDomain IS present, match normally
+        val domainMatches = AutofillMatcher.findMatches(listOf(braveEntry), "brave.com", "com.brave.browser")
+        assertEquals(1, domainMatches.size)
+    }
+
+    @Test
+    fun testDeriveDefaultTitle() {
+        assertEquals("Github", AutofillMatcher.deriveDefaultTitle("https://accounts.github.com/login", "com.android.chrome", null))
+        assertEquals("Spotify", AutofillMatcher.deriveDefaultTitle(null, "com.spotify.music", "Spotify"))
+        assertEquals("Telegram", AutofillMatcher.deriveDefaultTitle(null, "org.telegram.messenger", null))
+        assertEquals("Saved Login", AutofillMatcher.deriveDefaultTitle(null, null, null))
     }
 }

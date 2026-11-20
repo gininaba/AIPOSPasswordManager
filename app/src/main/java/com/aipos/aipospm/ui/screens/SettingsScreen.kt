@@ -81,7 +81,9 @@ import com.aipos.aipospm.ui.theme.WarningAmber
 import com.aipos.aipospm.ui.viewmodels.ApiKeyViewModel
 import com.aipos.aipospm.ui.viewmodels.AuthViewModel
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
+import com.aipos.aipospm.ui.viewmodels.PasskeyViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
+import com.aipos.aipospm.ui.viewmodels.VaultImportResult
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,6 +93,7 @@ fun SettingsScreen(
     passwordViewModel: PasswordViewModel,
     apiKeyViewModel: ApiKeyViewModel? = null,
     categoryViewModel: CategoryViewModel,
+    passkeyViewModel: PasskeyViewModel? = null,
     canUseBiometric: Boolean,
     onNavigateBack: () -> Unit,
     onNavigateToManageCategories: () -> Unit,
@@ -99,11 +102,27 @@ fun SettingsScreen(
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
     val deletedPasswordCount by passwordViewModel.deletedPasswordCount.collectAsStateWithLifecycle()
     val deletedApiKeyCount by (apiKeyViewModel?.deletedApiKeyCount ?: remember { kotlinx.coroutines.flow.MutableStateFlow(0) }).collectAsStateWithLifecycle()
-    val totalDeletedCount = deletedPasswordCount + deletedApiKeyCount
+    val deletedPasskeyCount by (passkeyViewModel?.deletedPasskeyCount ?: remember { kotlinx.coroutines.flow.MutableStateFlow(0) }).collectAsStateWithLifecycle()
+    val totalDeletedCount = deletedPasswordCount + deletedApiKeyCount + deletedPasskeyCount
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    fun checkPasskeyProviderEnabled(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                val cm = context.getSystemService(android.credentials.CredentialManager::class.java)
+                val component = android.content.ComponentName(
+                    context,
+                    com.aipos.aipospm.passkey.AiposCredentialProviderService::class.java
+                )
+                cm != null && cm.isEnabledCredentialProviderService(component)
+            } catch (_: Exception) {
+                false
+            }
+        } else false
+    }
 
     var isAutofillEnabled by remember {
         mutableStateOf(
@@ -114,6 +133,10 @@ fun SettingsScreen(
         )
     }
 
+    var isPasskeyProviderEnabled by remember {
+        mutableStateOf(checkPasskeyProviderEnabled())
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -121,6 +144,7 @@ fun SettingsScreen(
                     val am = context.getSystemService(android.view.autofill.AutofillManager::class.java)
                     isAutofillEnabled = am != null && am.isAutofillSupported && am.hasEnabledAutofillServices()
                 }
+                isPasskeyProviderEnabled = checkPasskeyProviderEnabled()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -137,37 +161,40 @@ fun SettingsScreen(
     }
 
     var showChangePassword by rememberSaveable { mutableStateOf(false) }
-    var currentPassword by rememberSaveable { mutableStateOf("") }
-    var newPassword by rememberSaveable { mutableStateOf("") }
-    var confirmNewPassword by rememberSaveable { mutableStateOf("") }
-    var currentPasswordVisible by rememberSaveable { mutableStateOf(false) }
-    var newPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmNewPassword by remember { mutableStateOf("") }
+    var currentPasswordVisible by remember { mutableStateOf(false) }
+    var newPasswordVisible by remember { mutableStateOf(false) }
 
-    val isBiometricEnabled = authViewModel.isBiometricEnabled()
+    val isBiometricEnabled = authState.isBiometricEnabled
 
-    // Backup states
-    var backupPasswordToSet by rememberSaveable { mutableStateOf("") }
-    var confirmBackupPasswordToSet by rememberSaveable { mutableStateOf("") }
-    var backupPasswordVisible by rememberSaveable { mutableStateOf(false) }
-    var confirmBackupPasswordVisible by rememberSaveable { mutableStateOf(false) }
-    var showSetBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
-    var pendingExportPassword by rememberSaveable { mutableStateOf("") }
-    var isBackupInProgress by rememberSaveable { mutableStateOf(false) }
+    // Backup states (kept in memory only — never serialized to instance state Bundle)
+    var backupPasswordToSet by remember { mutableStateOf("") }
+    var confirmBackupPasswordToSet by remember { mutableStateOf("") }
+    var backupPasswordVisible by remember { mutableStateOf(false) }
+    var confirmBackupPasswordVisible by remember { mutableStateOf(false) }
+    var showSetBackupPasswordDialog by remember { mutableStateOf(false) }
+    var pendingExportPassword by remember { mutableStateOf("") }
+    var isBackupInProgress by remember { mutableStateOf(false) }
 
-    var backupPasswordToEnter by rememberSaveable { mutableStateOf("") }
-    var backupPasswordToEnterVisible by rememberSaveable { mutableStateOf(false) }
-    var showEnterBackupPasswordDialog by rememberSaveable { mutableStateOf(false) }
+    var backupPasswordToEnter by remember { mutableStateOf("") }
+    var backupPasswordToEnterVisible by remember { mutableStateOf(false) }
+    var showEnterBackupPasswordDialog by remember { mutableStateOf(false) }
     var importUriString by rememberSaveable { mutableStateOf<String?>(null) }
     val importUri = remember(importUriString) { importUriString?.let { android.net.Uri.parse(it) } }
 
-    // Recovery Key states
-    var showViewKeyPasswordDialog by rememberSaveable { mutableStateOf(false) }
-    var confirmPasswordInput by rememberSaveable { mutableStateOf("") }
-    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
-    var showRecoveryKeyDialog by rememberSaveable { mutableStateOf(false) }
-    var decryptedRecoveryKey by rememberSaveable { mutableStateOf("") }
+    // Recovery Key states (kept in memory only)
+    var showViewKeyPasswordDialog by remember { mutableStateOf(false) }
+    var showRecoveryKeyDialog by remember { mutableStateOf(false) }
+    var decryptedRecoveryKey by remember { mutableStateOf("") }
 
-    val csvImportLauncher = rememberLauncherForActivityResult(
+    // Third-party vault import feedback dialog state
+    var isVaultImportInProgress by remember { mutableStateOf(false) }
+    var vaultImportAlertTitle by remember { mutableStateOf<String?>(null) }
+    var vaultImportAlertMessage by remember { mutableStateOf<String?>(null) }
+
+    val vaultImportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
@@ -178,19 +205,30 @@ fun SettingsScreen(
                 )
             } catch (_: SecurityException) {}
 
-            passwordViewModel.importCsv(
-                uri = uri,
-                onSuccess = { insertedCount ->
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Successfully imported $insertedCount entries")
+            isVaultImportInProgress = true
+            passwordViewModel.importVaultFile(uri = uri) { result ->
+                isVaultImportInProgress = false
+                when (result) {
+                    is VaultImportResult.Success -> {
+                        val label = if (result.count == 1) "credential" else "credentials"
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Successfully imported ${result.count} $label")
+                        }
                     }
-                },
-                onError = { error ->
-                    scope.launch {
-                        snackbarHostState.showSnackbar("CSV Import failed: $error")
+                    is VaultImportResult.EncryptedExport -> {
+                        vaultImportAlertTitle = "Encrypted Export Detected"
+                        vaultImportAlertMessage = result.message
+                    }
+                    is VaultImportResult.Empty -> {
+                        vaultImportAlertTitle = "No Credentials Imported"
+                        vaultImportAlertMessage = result.message
+                    }
+                    is VaultImportResult.Error -> {
+                        vaultImportAlertTitle = "Import Failed"
+                        vaultImportAlertMessage = result.message
                     }
                 }
-            )
+            }
         }
     }
 
@@ -248,7 +286,8 @@ fun SettingsScreen(
 
     // Set Backup Password Dialog (for export)
     if (showSetBackupPasswordDialog) {
-        val passwordsMatch = backupPasswordToSet.isNotEmpty() && backupPasswordToSet == confirmBackupPasswordToSet
+        val meetsMinLength = backupPasswordToSet.length >= 8
+        val passwordsMatch = meetsMinLength && backupPasswordToSet == confirmBackupPasswordToSet
         AlertDialog(
             onDismissRequest = {
                 if (!isBackupInProgress) {
@@ -261,7 +300,7 @@ fun SettingsScreen(
             text = {
                 Column {
                     Text(
-                        text = "Enter a password to encrypt your backup file. You will need this password to restore your vault data on any device.",
+                        text = "Enter a password (at least 8 characters) to encrypt your backup file. You will need this password to restore your vault data on any device.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -278,6 +317,12 @@ fun SettingsScreen(
                                     imageVector = if (backupPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = if (backupPasswordVisible) "Hide password" else "Show password"
                                 )
+                            }
+                        },
+                        isError = backupPasswordToSet.isNotEmpty() && !meetsMinLength,
+                        supportingText = {
+                            if (backupPasswordToSet.isNotEmpty() && !meetsMinLength) {
+                                Text("At least 8 characters required", color = MaterialTheme.colorScheme.error)
                             }
                         },
                         shape = RoundedCornerShape(12.dp)
@@ -672,7 +717,7 @@ fun SettingsScreen(
                         }
                         Text(
                             text = if (isAutofillEnabled)
-                                "AIPOS is ready to autofill passwords in apps & browsers"
+                                "Inline keyboard chips, auto-save prompts & 2FA auto-copy active"
                             else
                                 "Tap to enable AIPOS as your device's Autofill Provider",
                             style = MaterialTheme.typography.bodySmall,
@@ -683,6 +728,100 @@ fun SettingsScreen(
                     Icon(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Configure Autofill",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Android 14+ Passkey Provider Service
+            val supportsPasskeys = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bounceClick {
+                        if (supportsPasskeys) {
+                            MainActivity.setExpectingExternalActivity(true)
+                            try {
+                                val intent = Intent(android.provider.Settings.ACTION_CREDENTIAL_PROVIDER).apply {
+                                    data = android.net.Uri.parse("package:${context.packageName}")
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                try {
+                                    context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+                                } catch (_: Exception) {}
+                            }
+                        } else {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("System Passkey Provider requires Android 14 (API 34) or higher")
+                            }
+                        }
+                    },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Passkey Provider",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        when {
+                                            !supportsPasskeys -> WarningAmber.copy(alpha = 0.12f)
+                                            isPasskeyProviderEnabled -> SecurityGreen.copy(alpha = 0.12f)
+                                            else -> WarningAmber.copy(alpha = 0.12f)
+                                        }
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = when {
+                                        !supportsPasskeys -> "Requires Android 14"
+                                        isPasskeyProviderEnabled -> "Active"
+                                        else -> "Disabled"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when {
+                                        !supportsPasskeys -> WarningAmber
+                                        isPasskeyProviderEnabled -> SecurityGreen
+                                        else -> WarningAmber
+                                    }
+                                )
+                            }
+                        }
+                        Text(
+                            text = when {
+                                !supportsPasskeys -> "Upgrade to Android 14+ to enable system-wide offline Passwords & Passkeys"
+                                isPasskeyProviderEnabled -> "AIPOS is active as an offline Passwords & Passkeys provider"
+                                else -> "Tap to enable AIPOS under Passwords, passkeys & accounts"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Configure Passkey Provider",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -779,32 +918,30 @@ fun SettingsScreen(
                         val changePasswordBtnInteractionSource = remember { MutableInteractionSource() }
                         Button(
                             onClick = {
-                                val success = authViewModel.changeMasterPassword(
+                                authViewModel.changeMasterPassword(
                                     currentPassword, newPassword, confirmNewPassword
-                                )
-                                if (success) {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Password changed successfully")
+                                ) { success ->
+                                    if (success) {
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Password changed successfully")
+                                        }
+                                        currentPassword = ""
+                                        newPassword = ""
+                                        confirmNewPassword = ""
+                                        showChangePassword = false
                                     }
-                                    currentPassword = ""
-                                    newPassword = ""
-                                    confirmNewPassword = ""
-                                    showChangePassword = false
-                                } else {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Failed to change password")
-                                    }
+                                    // Specific error is surfaced automatically via authState.error
                                 }
                             },
                             interactionSource = changePasswordBtnInteractionSource,
                             modifier = Modifier.fillMaxWidth().pressScale(changePasswordBtnInteractionSource),
                             shape = RoundedCornerShape(12.dp),
-                            enabled = currentPassword.isNotBlank() && newPassword.isNotBlank() && confirmNewPassword.isNotBlank(),
+                            enabled = !authState.isLoading && currentPassword.isNotBlank() && newPassword.isNotBlank() && confirmNewPassword.isNotBlank(),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary
                             )
                         ) {
-                            Text("Change Password")
+                            Text(if (authState.isLoading) "Updating..." else "Change Password")
                         }
                     }
                 }
@@ -1044,22 +1181,32 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Import credentials from Bitwarden, KeePass, or 1Password CSV exports. The file is processed completely offline, and all keys are securely encrypted.",
+                        text = "Import credentials from Bitwarden (unencrypted JSON or CSV), KeePass, or 1Password CSV exports. Files are processed completely offline and encrypted locally.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(16.dp))
-                    val csvImportBtnInteractionSource = remember { MutableInteractionSource() }
+                    val vaultImportBtnInteractionSource = remember { MutableInteractionSource() }
                     Button(
                         onClick = {
                             MainActivity.setExpectingExternalActivity(true)
-                            csvImportLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "application/csv", "*/*"))
+                            vaultImportLauncher.launch(
+                                arrayOf(
+                                    "text/csv",
+                                    "text/comma-separated-values",
+                                    "application/csv",
+                                    "application/json",
+                                    "text/plain",
+                                    "*/*"
+                                )
+                            )
                         },
-                        interactionSource = csvImportBtnInteractionSource,
-                        modifier = Modifier.fillMaxWidth().pressScale(csvImportBtnInteractionSource),
-                        shape = RoundedCornerShape(12.dp)
+                        interactionSource = vaultImportBtnInteractionSource,
+                        modifier = Modifier.fillMaxWidth().pressScale(vaultImportBtnInteractionSource),
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !isVaultImportInProgress && !isBackupInProgress
                     ) {
-                        Text("Select and Import CSV")
+                        Text(if (isVaultImportInProgress) "Importing..." else "Import CSV or JSON Vault")
                     }
                 }
             }
@@ -1086,6 +1233,15 @@ fun SettingsScreen(
                 )
             }
 
+            val appVersion = remember(context) {
+                try {
+                    val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                    "v${pkgInfo.versionName ?: "1.7.0-beta.1"}"
+                } catch (_: Exception) {
+                    "v1.7.0-beta.1"
+                }
+            }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -1095,7 +1251,7 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     InfoRow("App Name", "AIPOS Password Manager")
-                    InfoRow("Version", "v1.6.1")
+                    InfoRow("Version", appVersion)
                     InfoRow("Developed by", "gininaba")
                     InfoRow("Security", "AES-256-GCM Encryption")
                     InfoRow("Storage", "Fully Offline (Local Only)")
@@ -1110,12 +1266,15 @@ fun SettingsScreen(
         var verifyPasswordInput by remember { mutableStateOf("") }
         var verifyPasswordVisible by remember { mutableStateOf(false) }
         var verifyError by remember { mutableStateOf<String?>(null) }
+        var isVerifyingKey by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = { 
-                showViewKeyPasswordDialog = false 
-                verifyPasswordInput = ""
-                verifyError = null
+                if (!isVerifyingKey) {
+                    showViewKeyPasswordDialog = false 
+                    verifyPasswordInput = ""
+                    verifyError = null
+                }
             },
             title = { Text("Confirm Master Password") },
             text = {
@@ -1155,25 +1314,32 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val isCorrect = authViewModel.verifyMasterPassword(verifyPasswordInput)
-                        if (isCorrect) {
-                            val key = authViewModel.getDecryptedRecoveryKey()
-                            if (key != null) {
-                                decryptedRecoveryKey = key
-                                showRecoveryKeyDialog = true
-                                showViewKeyPasswordDialog = false
-                                verifyPasswordInput = ""
-                                verifyError = null
+                        if (isVerifyingKey) return@TextButton
+                        isVerifyingKey = true
+                        verifyError = null
+                        authViewModel.verifyMasterPasswordForAction(verifyPasswordInput) { isCorrect, errMsg ->
+                            if (isCorrect) {
+                                authViewModel.getDecryptedRecoveryKeyAsync { key ->
+                                    isVerifyingKey = false
+                                    if (key != null) {
+                                        decryptedRecoveryKey = key
+                                        showRecoveryKeyDialog = true
+                                        showViewKeyPasswordDialog = false
+                                        verifyPasswordInput = ""
+                                        verifyError = null
+                                    } else {
+                                        verifyError = "Recovery key not found. Please set a new password to generate one."
+                                    }
+                                }
                             } else {
-                                verifyError = "Recovery key not found. Please set a new password to generate one."
+                                isVerifyingKey = false
+                                verifyError = errMsg ?: "Incorrect master password"
                             }
-                        } else {
-                            verifyError = "Incorrect master password"
                         }
                     },
-                    enabled = verifyPasswordInput.isNotBlank()
+                    enabled = !isVerifyingKey && verifyPasswordInput.isNotBlank()
                 ) {
-                    Text("Confirm")
+                    Text(if (isVerifyingKey) "Verifying..." else "Confirm")
                 }
             },
             dismissButton = {
@@ -1182,7 +1348,8 @@ fun SettingsScreen(
                         showViewKeyPasswordDialog = false
                         verifyPasswordInput = ""
                         verifyError = null
-                    }
+                    },
+                    enabled = !isVerifyingKey
                 ) {
                     Text("Cancel")
                 }
@@ -1192,7 +1359,10 @@ fun SettingsScreen(
 
     if (showRecoveryKeyDialog) {
         AlertDialog(
-            onDismissRequest = { showRecoveryKeyDialog = false },
+            onDismissRequest = {
+                showRecoveryKeyDialog = false
+                decryptedRecoveryKey = ""
+            },
             title = { Text("Emergency Recovery Key") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1232,8 +1402,37 @@ fun SettingsScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showRecoveryKeyDialog = false }) {
+                TextButton(onClick = {
+                    showRecoveryKeyDialog = false
+                    decryptedRecoveryKey = ""
+                }) {
                     Text("Close")
+                }
+            }
+        )
+    }
+
+    if (vaultImportAlertTitle != null && vaultImportAlertMessage != null) {
+        AlertDialog(
+            onDismissRequest = {
+                vaultImportAlertTitle = null
+                vaultImportAlertMessage = null
+            },
+            title = { Text(vaultImportAlertTitle!!) },
+            text = {
+                Text(
+                    text = vaultImportAlertMessage!!,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vaultImportAlertTitle = null
+                        vaultImportAlertMessage = null
+                    }
+                ) {
+                    Text("OK")
                 }
             }
         )

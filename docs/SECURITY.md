@@ -14,8 +14,8 @@ AIPOS Password Manager is engineered around three core security tenets:
 | Security Domain | Algorithm / Parameter | Implementation Details |
 |---|---|---|
 | **Vault Encryption at Rest** | AES-256-GCM | 256-bit key stored in `AndroidKeyStore`. 12-byte IV generated randomly per payload. 128-bit authentication tag. |
-| **Master Password Hashing** | PBKDF2WithHmacSHA256 | 120,000 iterations + 16-byte cryptographically secure random salt (`SecureRandom`). |
-| **Backup Encryption** | PBKDF2 + AES-256-GCM | 100,000 iterations for backup key derivation using user backup password. Allows cross-device restoration without hardware key dependency. |
+| **Master Password Hashing** | PBKDF2WithHmacSHA256 | 120,000 iterations + 32-byte cryptographically secure random salt (`SecureRandom`). |
+| **Backup Encryption** | PBKDF2 + AES-256-GCM | 210,000 iterations for backup key derivation using user backup password (backward-compatible with legacy 100,000-iteration backups). Allows cross-device restoration without hardware key dependency. |
 | **Metadata Security** | EncryptedSharedPreferences | Keys encrypted using `AES256_SIV`, values using `AES256_GCM`. Stores master salt and hashed verification tokens. |
 | **Biometric Authentication** | AndroidX Biometric API | Enforces `BIOMETRIC_STRONG` (hardware fingerprint / 3D face recognition). |
 

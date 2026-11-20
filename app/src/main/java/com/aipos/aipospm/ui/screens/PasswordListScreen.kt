@@ -44,7 +44,7 @@ import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import com.aipos.aipospm.ui.components.VaultIconRegistry
-import com.aipos.aipospm.ui.theme.WarningAmber
+import com.aipos.aipospm.ui.components.getCategoryColors
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -449,6 +449,10 @@ fun PasswordListContent(
                 }
             } else {
                 val categoryMap = remember(categories) { categories.associateBy { it.id } }
+                val favoriteCount = remember(passwords) { passwords.count { it.isFavorite } }
+                val nonFavoriteCount = passwords.size - favoriteCount
+                val hasBoth = pinFavorites && favoriteCount > 0 && nonFavoriteCount > 0
+
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -458,7 +462,6 @@ fun PasswordListContent(
                         key = { _, it -> it.id },
                         contentType = { _, _ -> "password_item" }
                     ) { index, entry ->
-                        val hasBoth = pinFavorites && passwords.any { it.isFavorite } && passwords.any { !it.isFavorite }
                         val isFirstFavorite = hasBoth && index == 0 && entry.isFavorite
                         val isFirstNonFavorite = hasBoth && !entry.isFavorite && (index == 0 || passwords[index - 1].isFavorite)
 
@@ -466,14 +469,14 @@ fun PasswordListContent(
                             if (isFirstFavorite) {
                                 VaultSectionHeader(
                                     title = "Favorites",
-                                    count = passwords.count { it.isFavorite },
+                                    count = favoriteCount,
                                     icon = Icons.Default.Star,
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                             } else if (isFirstNonFavorite) {
                                 VaultSectionHeader(
                                     title = "All Passwords",
-                                    count = passwords.count { !it.isFavorite },
+                                    count = nonFavoriteCount,
                                     icon = Icons.Default.Password,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -571,16 +574,6 @@ fun PasswordListContent(
             }
         }
     }
-}
-
-@Composable
-fun getCategoryColors(name: String): Pair<Color, Color> {
-    val hash = name.hashCode().absoluteValue
-    val hue = (hash % 360).toFloat()
-    val isDark = isSystemInDarkTheme()
-    val containerColor = Color.hsv(hue, 0.15f, if (isDark) 0.15f else 0.95f)
-    val contentColor = Color.hsv(hue, 0.8f, if (isDark) 0.9f else 0.4f)
-    return Pair(containerColor, contentColor)
 }
 
 @Composable
@@ -701,16 +694,26 @@ private fun PasswordCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
+                    if (entry.username.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = entry.username,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    } else if (entry.notes.isNotBlank()) {
                         Text(
-                            text = entry.username,
+                            text = entry.notes.lineSequence().firstOrNull()?.trim().orEmpty(),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -775,6 +778,21 @@ private fun PasswordCard(
                                     )
                                 }
                             }
+                        } else if (entry.username.isBlank() && entry.notes.isNotBlank()) {
+                            Card(
+                                shape = RoundedCornerShape(6.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
+                                )
+                            ) {
+                                Text(
+                                    text = "Note",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
 
                         if (categoryName != null) {
@@ -797,13 +815,15 @@ private fun PasswordCard(
                     }
                 }
 
-                IconButton(onClick = onCopyUsername, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "Copy username",
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.outline
-                    )
+                if (entry.username.isNotBlank()) {
+                    IconButton(onClick = onCopyUsername, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy username",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.outline
+                        )
+                    }
                 }
 
                 IconButton(onClick = onFavoriteClick, modifier = Modifier.size(36.dp)) {

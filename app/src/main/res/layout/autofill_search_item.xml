@@ -2,42 +2,48 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:background="@color/autofill_card_bg"
+    android:gravity="center_vertical"
     android:orientation="horizontal"
     android:paddingStart="16dp"
-    android:paddingEnd="16dp"
     android:paddingTop="12dp"
-    android:paddingBottom="12dp"
-    android:gravity="center_vertical">
+    android:paddingEnd="16dp"
+    android:paddingBottom="12dp">
 
     <ImageView
-        android:layout_width="28dp"
-        android:layout_height="28dp"
-        android:src="@drawable/ic_autofill_search"
-        android:contentDescription="Search AIPOS" />
+        android:layout_width="34dp"
+        android:layout_height="34dp"
+        android:background="@drawable/bg_autofill_icon_circle"
+        android:contentDescription="AIPOS Vault"
+        android:padding="7dp"
+        android:src="@drawable/ic_autofill_shield" />
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
         android:layout_marginStart="14dp"
+        android:layout_weight="1"
         android:orientation="vertical">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Search AIPOS Vault..."
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="AIPOS Password Manager"
+            android:textColor="@color/autofill_accent"
             android:textSize="14sp"
-            android:textStyle="bold"
-            android:textColor="#006C4C"
-            android:maxLines="1" />
+            android:textStyle="bold" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Unlock and pick another account"
-            android:textSize="12sp"
-            android:textColor="#43474E"
-            android:maxLines="1" />
+            android:layout_marginTop="1dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Choose or search saved passwords"
+            android:textColor="@color/autofill_text_secondary"
+            android:textSize="12sp" />
     </LinearLayout>
 
 </LinearLayout>

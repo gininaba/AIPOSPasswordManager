@@ -42,6 +42,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import androidx.compose.material3.TextButton
@@ -73,6 +74,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Lock
+import com.aipos.aipospm.security.PasswordStrengthEvaluator
 import com.aipos.aipospm.security.TotpHelper
 import com.aipos.aipospm.ui.theme.DangerRed
 import com.aipos.aipospm.ui.theme.SecurityGreen
@@ -99,8 +101,7 @@ fun PasswordDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var passwordVisible by remember { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var isPasswordCopied by remember { mutableStateOf(false) }
     var isTotpCopied by remember { mutableStateOf(false) }
@@ -115,14 +116,15 @@ fun PasswordDetailScreen(
         onNavigateBack()
     }
 
-    // Tick every second when we have a TOTP secret
+    // Tick aligned to exact wall-clock second boundaries when we have a TOTP secret
     LaunchedEffect(decryptedTotpSecret) {
         if (decryptedTotpSecret.isNotBlank()) {
             while (true) {
                 val now = System.currentTimeMillis()
                 totpCode = TotpHelper.generateCode(decryptedTotpSecret, now) ?: "------"
                 totpSecondsRemaining = TotpHelper.secondsRemaining(now)
-                kotlinx.coroutines.delay(1000)
+                val delayUntilNextSecond = (1000L - (now % 1000L)).coerceIn(50L, 1000L)
+                kotlinx.coroutines.delay(delayUntilNextSecond)
             }
         } else {
             totpCode = ""
@@ -352,85 +354,85 @@ fun PasswordDetailScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Username
-                DetailField(
-                    label = "Username / Email",
-                    value = entry.username,
-                    icon = Icons.Default.Person,
-                    onCopy = {
-                        ClipboardHelper.copyAndScheduleClear(context, "Username", entry.username)
-                        scope.launch {
-                            snackbarHostState.showSnackbar("Username copied (clears in 30s)")
+                // Username (only shown when non-blank)
+                if (entry.username.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    DetailField(
+                        label = "Username / Email",
+                        value = entry.username,
+                        icon = Icons.Default.Person,
+                        onCopy = {
+                            ClipboardHelper.copyAndScheduleClear(context, "Username", entry.username)
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Username copied (clears in 30s)")
+                            }
                         }
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Password
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Password",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = if (passwordVisible) decryptedPassword
-                                else "•".repeat(minOf(decryptedPassword.length, 20)),
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = { passwordVisible = !passwordVisible },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (passwordVisible) Icons.Default.VisibilityOff
-                                    else Icons.Default.Visibility,
-                                    contentDescription = if (passwordVisible) "Hide" else "Show",
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            IconButton(
-                                onClick = {
-                                    ClipboardHelper.copyAndScheduleClear(context, "Password", decryptedPassword)
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Password copied (clears in 30s)")
-                                    }
-                                    isPasswordCopied = true
-                                },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isPasswordCopied) Icons.Default.Check else Icons.Default.ContentCopy,
-                                    contentDescription = if (isPasswordCopied) "Copied" else "Copy",
-                                    modifier = Modifier.size(20.dp),
-                                    tint = if (isPasswordCopied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                                )
-                            }
-                        }
-                    }
                 }
 
-                // Password Security Audit
+                // Password & Security Audit (only shown when a password is stored)
                 if (decryptedPassword.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Password",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (passwordVisible) decryptedPassword
+                                    else "•".repeat(minOf(decryptedPassword.length, 20)),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = { passwordVisible = !passwordVisible },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (passwordVisible) Icons.Default.VisibilityOff
+                                        else Icons.Default.Visibility,
+                                        contentDescription = if (passwordVisible) "Hide" else "Show",
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        ClipboardHelper.copyAndScheduleClear(context, "Password", decryptedPassword)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Password copied (clears in 30s)")
+                                        }
+                                        isPasswordCopied = true
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPasswordCopied) Icons.Default.Check else Icons.Default.ContentCopy,
+                                        contentDescription = if (isPasswordCopied) "Copied" else "Copy",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = if (isPasswordCopied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     val strength = remember(decryptedPassword) {
                         evaluateLocalStrength(decryptedPassword)
                     }
-                    val isBreached = remember(decryptedPassword) {
-                        passwordViewModel.isPasswordBreached(decryptedPassword)
+                    val isBreached = remember(decryptedPassword, entry.excludeFromAudit) {
+                        !entry.excludeFromAudit && passwordViewModel.isPasswordBreached(decryptedPassword)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -454,7 +456,9 @@ fun PasswordDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = when (strength) {
+                                    text = if (entry.excludeFromAudit) {
+                                        "Audit Ignored"
+                                    } else when (strength) {
                                         PasswordStrength.NONE -> "Unknown"
                                         PasswordStrength.WEAK -> "Weak"
                                         PasswordStrength.MEDIUM -> "Medium"
@@ -462,7 +466,9 @@ fun PasswordDetailScreen(
                                     },
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = when (strength) {
+                                    color = if (entry.excludeFromAudit) {
+                                        MaterialTheme.colorScheme.outline
+                                    } else when (strength) {
                                         PasswordStrength.NONE -> MaterialTheme.colorScheme.outline
                                         PasswordStrength.WEAK -> MaterialTheme.colorScheme.error
                                         PasswordStrength.MEDIUM -> MaterialTheme.colorScheme.tertiary
@@ -471,48 +477,68 @@ fun PasswordDetailScreen(
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            if (!entry.excludeFromAudit) {
+                                Spacer(modifier = Modifier.height(8.dp))
 
-                            LinearProgressIndicator(
-                                progress = {
-                                    when (strength) {
-                                        PasswordStrength.NONE -> 0f
-                                        PasswordStrength.WEAK -> 0.33f
-                                        PasswordStrength.MEDIUM -> 0.66f
-                                        PasswordStrength.STRONG -> 1f
+                                LinearProgressIndicator(
+                                    progress = {
+                                        when (strength) {
+                                            PasswordStrength.NONE -> 0f
+                                            PasswordStrength.WEAK -> 0.33f
+                                            PasswordStrength.MEDIUM -> 0.66f
+                                            PasswordStrength.STRONG -> 1f
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(6.dp)
+                                        .clip(RoundedCornerShape(3.dp)),
+                                    color = when (strength) {
+                                        PasswordStrength.NONE -> MaterialTheme.colorScheme.outline
+                                        PasswordStrength.WEAK -> MaterialTheme.colorScheme.error
+                                        PasswordStrength.MEDIUM -> MaterialTheme.colorScheme.tertiary
+                                        PasswordStrength.STRONG -> MaterialTheme.colorScheme.primary
+                                    },
+                                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    strokeCap = StrokeCap.Round
+                                )
+
+                                if (isBreached) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Shield,
+                                            contentDescription = "Breached",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Compromised: Weak or publicly breached",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontWeight = FontWeight.Medium
+                                        )
                                     }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp)),
-                                color = when (strength) {
-                                    PasswordStrength.NONE -> MaterialTheme.colorScheme.outline
-                                    PasswordStrength.WEAK -> MaterialTheme.colorScheme.error
-                                    PasswordStrength.MEDIUM -> MaterialTheme.colorScheme.tertiary
-                                    PasswordStrength.STRONG -> MaterialTheme.colorScheme.primary
-                                },
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                strokeCap = StrokeCap.Round
-                            )
-
-                            if (isBreached) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Shield,
-                                        contentDescription = "Breached",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "Compromised: Weak or publicly breached",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontWeight = FontWeight.Medium
-                                    )
                                 }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Ignore security warnings (e.g. fixed PIN)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Switch(
+                                    checked = entry.excludeFromAudit,
+                                    onCheckedChange = { passwordViewModel.setExcludeFromAudit(entry, it) }
+                                )
                             }
                         }
                     }
@@ -629,14 +655,23 @@ fun PasswordDetailScreen(
                         },
                         onAction = {
                             try {
-                                val formattedUrl = if (!entry.url.startsWith("http://") && !entry.url.startsWith("https://")) {
-                                    "https://${entry.url}"
+                                val trimmedUrl = entry.url.trim()
+                                val formattedUrl = if (!trimmedUrl.contains("://")) {
+                                    "https://$trimmedUrl"
                                 } else {
-                                    entry.url
+                                    trimmedUrl
                                 }
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(formattedUrl))
+                                val parsedUri = android.net.Uri.parse(formattedUrl)
+                                val scheme = parsedUri.scheme?.lowercase(Locale.ROOT)
+                                if (scheme != "http" && scheme != "https") {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Only http:// and https:// URLs can be opened")
+                                    }
+                                    return@DetailField
+                                }
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, parsedUri)
                                 context.startActivity(intent)
-                            } catch (e: Exception) {
+                            } catch (_: Exception) {
                                 scope.launch {
                                     snackbarHostState.showSnackbar("Could not open browser for this URL")
                                 }
@@ -727,18 +762,7 @@ fun PasswordDetailScreen(
 }
 
 fun evaluateLocalStrength(password: String): PasswordStrength {
-    if (password.isEmpty()) return PasswordStrength.NONE
-    var score = 0
-    if (password.length >= 8) score++
-    if (password.length >= 12) score++
-    if (password.any { it.isUpperCase() }) score++
-    if (password.any { it.isDigit() }) score++
-    if (password.any { !it.isLetterOrDigit() }) score++
-    return when {
-        score <= 1 -> PasswordStrength.WEAK
-        score <= 3 -> PasswordStrength.MEDIUM
-        else -> PasswordStrength.STRONG
-    }
+    return PasswordStrengthEvaluator.evaluate(password)
 }
 
 @Composable

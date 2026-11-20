@@ -14,6 +14,7 @@ object TotpHelper {
 
     private const val TOTP_PERIOD_SECONDS = 30
     private const val TOTP_DIGITS = 6
+    private const val TOTP_MODULUS = 1_000_000
     private const val HMAC_ALGORITHM = "HmacSHA1"
 
     // Base32 alphabet (RFC 4648)
@@ -126,7 +127,6 @@ object TotpHelper {
                 ((hash[offset + 2].toInt() and 0xFF) shl 8) or
                 (hash[offset + 3].toInt() and 0xFF)
 
-        val modulus = Math.pow(10.0, TOTP_DIGITS.toDouble()).toInt()
-        return binary % modulus
+        return binary % TOTP_MODULUS
     }
 }

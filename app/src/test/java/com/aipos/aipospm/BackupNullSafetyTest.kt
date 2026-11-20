@@ -78,10 +78,10 @@ class BackupNullSafetyTest {
     @Test
     fun testBackupVersionRangeValidation() {
         fun isVersionValid(version: Int?): Boolean {
-            return version == null || version in 1..10
+            return version != null && version in 1..10
         }
 
-        assertTrue(isVersionValid(null))
+        org.junit.Assert.assertFalse(isVersionValid(null))
         assertTrue(isVersionValid(1))
         assertTrue(isVersionValid(2))
         assertTrue(isVersionValid(10))

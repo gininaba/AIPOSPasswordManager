@@ -83,8 +83,7 @@ fun ApiKeyDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-    var keyVisible by rememberSaveable { mutableStateOf(false) }
+    var keyVisible by remember { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var isKeyCopied by remember { mutableStateOf(false) }
 

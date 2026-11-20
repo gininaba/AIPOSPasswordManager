@@ -1,6 +1,8 @@
 package com.aipos.aipospm
 
 import android.os.Bundle
+import android.os.SystemClock
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -17,9 +19,10 @@ import com.aipos.aipospm.security.MasterPasswordManager
 import com.aipos.aipospm.ui.theme.AIPOSPasswordManagerTheme
 import com.aipos.aipospm.ui.viewmodels.ApiKeyViewModel
 import com.aipos.aipospm.ui.viewmodels.AuthViewModel
+import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
+import com.aipos.aipospm.ui.viewmodels.PasskeyViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordGeneratorViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
-import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 
 class MainActivity : FragmentActivity() {
 
@@ -27,16 +30,24 @@ class MainActivity : FragmentActivity() {
     private lateinit var passwordViewModel: PasswordViewModel
     private lateinit var apiKeyViewModel: ApiKeyViewModel
     private lateinit var categoryViewModel: CategoryViewModel
+    private lateinit var passkeyViewModel: PasskeyViewModel
     private lateinit var generatorViewModel: PasswordGeneratorViewModel
     private val biometricHelper = BiometricHelper()
     private val screenOffReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
             if (intent?.action == android.content.Intent.ACTION_SCREEN_OFF) {
-                authViewModel.lock()
-                passwordViewModel.clearDecryptionCache()
+                lockVault()
                 lastBackgroundTime = 0L
             }
         }
+    }
+
+    private fun lockVault() {
+        authViewModel.lock()
+        passwordViewModel.clearDecryptionCache()
+        passwordViewModel.clearSelection()
+        apiKeyViewModel.clearSelection()
+        generatorViewModel.clearHistory()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,9 +59,10 @@ class MainActivity : FragmentActivity() {
         passwordViewModel = ViewModelProvider(this)[PasswordViewModel::class.java]
         apiKeyViewModel = ViewModelProvider(this)[ApiKeyViewModel::class.java]
         categoryViewModel = ViewModelProvider(this)[CategoryViewModel::class.java]
+        passkeyViewModel = ViewModelProvider(this)[PasskeyViewModel::class.java]
         generatorViewModel = ViewModelProvider(this)[PasswordGeneratorViewModel::class.java]
 
-        val masterPasswordManager = MasterPasswordManager(this)
+        val masterPasswordManager = MasterPasswordManager.getInstance(this)
         val canUseBiometric = biometricHelper.canAuthenticate(this)
 
         // Set initial window FLAG_SECURE state based on persisted preference
@@ -91,6 +103,7 @@ class MainActivity : FragmentActivity() {
                     passwordViewModel = passwordViewModel,
                     apiKeyViewModel = apiKeyViewModel,
                     categoryViewModel = categoryViewModel,
+                    passkeyViewModel = passkeyViewModel,
                     generatorViewModel = generatorViewModel,
                     canUseBiometric = canUseBiometric,
                     onBiometricAuth = {
@@ -114,8 +127,9 @@ class MainActivity : FragmentActivity() {
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
         )
 
-        // Auto-trigger biometric on launch if enabled
-        if (startDestination == Screen.Auth.route &&
+        // Auto-trigger biometric on launch only if locked (prevents re-prompt on rotation while unlocked)
+        if (!authViewModel.uiState.value.isAuthenticated &&
+            startDestination == Screen.Auth.route &&
             canUseBiometric &&
             masterPasswordManager.isBiometricEnabled()
         ) {
@@ -135,16 +149,24 @@ class MainActivity : FragmentActivity() {
         @Volatile
         private var lastBackgroundTime = 0L
 
+        private fun monotonicNowMs(): Long {
+            return try {
+                SystemClock.elapsedRealtime()
+            } catch (_: Throwable) {
+                System.nanoTime() / 1_000_000L
+            }
+        }
+
         fun setExpectingExternalActivity(expecting: Boolean) {
             isExpectingExternalActivity = expecting
-            externalActivityLaunchTime = if (expecting) System.currentTimeMillis() else 0L
+            externalActivityLaunchTime = if (expecting) monotonicNowMs() else 0L
         }
 
         fun consumeExternalActivitySuppression(): Boolean {
             if (!isExpectingExternalActivity) return false
-            val now = System.currentTimeMillis()
+            val now = monotonicNowMs()
             // Allow up to 10 minutes for user to complete file picker / system dialog flow
-            val valid = (now - externalActivityLaunchTime) < 10 * 60 * 1000
+            val valid = (now - externalActivityLaunchTime) in 0L until (10 * 60 * 1000L)
             isExpectingExternalActivity = false
             externalActivityLaunchTime = 0L
             return valid
@@ -158,7 +180,9 @@ class MainActivity : FragmentActivity() {
     override fun onStop() {
         super.onStop()
         if (!isChangingConfigurations) {
-            lastBackgroundTime = System.currentTimeMillis()
+            lastBackgroundTime = monotonicNowMs()
+            // Immediately flush transient plaintext decryption cache when leaving foreground
+            passwordViewModel.clearDecryptionCache()
         }
     }
 
@@ -171,10 +195,9 @@ class MainActivity : FragmentActivity() {
         if (lastBackgroundTime > 0L) {
             val timeoutMinutes = authViewModel.uiState.value.autoLockTimeout
             if (timeoutMinutes >= 0) {
-                val elapsed = System.currentTimeMillis() - lastBackgroundTime
+                val elapsed = monotonicNowMs() - lastBackgroundTime
                 if (elapsed >= timeoutMinutes * 60 * 1000L) {
-                    authViewModel.lock()
-                    passwordViewModel.clearDecryptionCache()
+                    lockVault()
                 }
             }
             lastBackgroundTime = 0L
@@ -186,7 +209,7 @@ class MainActivity : FragmentActivity() {
         try {
             unregisterReceiver(screenOffReceiver)
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w("MainActivity", "Failed to unregister screen-off receiver", e)
         }
     }
 }

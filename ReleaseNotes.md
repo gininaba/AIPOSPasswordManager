@@ -1,5 +1,40 @@
 # AIPOS Password Manager — Release Notes
 
+## What's New in v1.7.0-beta.1 (Beta Pre-Release)
+
+> **Beta Testing Note:** This is a pre-release build of **v1.7.0** (including a Room database schema upgrade to v7). Please export an encrypted AIPOS backup from **Settings → Export Encrypted Backup** before installing, and report any issues on GitHub!
+
+AIPOS Password Manager **v1.7.0-beta.1** previews a major feature and security release bringing a **Google Password Manager-style Autofill overhaul**, a **100% offline Android 14+ Passkey & Credential Provider**, **Bitwarden JSON & multi-language CSV vault migration**, **flexible Note/PIN entries with smart security audits**, and deep cryptographic hardening—while maintaining **zero `INTERNET` or `BLUETOOTH` permissions**.
+
+---
+
+### 1. Google Password Manager-Style Autofill Overhaul
+- **Keyboard Inline Strip Chips (Android 11+)**: Displays sleek pill chips directly above your keyboard (`Gboard`, `Samsung Keyboard`, `SwiftKey`, `HeliBoard`, etc.) for matched credentials, `"Suggest strong password"` on sign-up forms, and a pinned trailing **AIPOS Vault** chip, paired with adaptive Light/Dark Material 3 fallback dropdown cards.
+- **1-Tap Biometric Fill & Material 3 Bottom Sheet**: Tapping a matched account chip prompts `BIOMETRIC_STRONG` for instant 1-tap filling; tapping the Vault chip opens a Google-style Material 3 Modal Bottom Sheet with domain/app badge, suggested entries, custom vault icons, `"2FA"` badges, and instant vault search.
+- **Suggest Strong Password**: Automatically detects sign-up / `new-password` forms, generates a cryptographic password, fills both Password and Confirm Password fields simultaneously, and saves the new credential directly to your encrypted vault.
+- **Save & Update Password Bottom Sheet (`onSaveRequest`)**: Automatically offers `"Save password to AIPOS?"` (1-tap save) for new logins and `"Update password in AIPOS?"` (protected by biometric/master-password verification) when changing passwords, while silently skipping unchanged credentials.
+- **2FA TOTP Auto-Copy on Autofill**: Automatically copies the live 6-digit TOTP code to the clipboard (marked sensitive on Android 13+ with 30-second auto-clear) whenever a filled account has 2FA configured.
+- **Android 14+ Unified Credential Manager Passwords**: Exposes saved AIPOS passwords natively alongside Passkeys in Android 14+'s system sign-in bottom sheet.
+
+### 2. 100% Offline Android 14+ Passkey Provider (WebAuthn / FIDO2)
+- **Native Hardware-Backed Passkeys**: Generates and stores ECDSA P-256 (ES256) Passkey keypairs encrypted with Android Keystore AES-256-GCM—100% offline with zero network or Bluetooth permissions.
+- **Passkey Vault, Trash & Backup v7**: Dedicated Passkeys screen with live system-provider status badge, soft-delete Trash tab, Room v7 auto-migration, and full encrypted Passkey export/import in Backup v7.
+- **`FIDO:/` QR Code Guidance**: Recognizes cross-device `FIDO:/` QR codes in the scanner, explains AIPOS's strictly offline design, and offers an optional system handoff.
+
+### 3. Universal Vault Migration (Bitwarden JSON & Localized CSV)
+- **Bitwarden JSON Import**: Imports unencrypted Bitwarden `.json` vault exports including Logins, Secure Notes, Folders, TOTP secrets, URLs, and Favorites, with clear alerts if an encrypted export is selected.
+- **BOM-Hardened Multi-Language CSV**: Strips UTF-8 BOM headers automatically, preserves intentional whitespace in passwords, and maps localized headers (EN, RU, DE, FR, ES).
+
+### 4. Flexible Notes, PINs & Smart Security Auditing
+- **Optional Username & Password**: Only **Title** is mandatory, making it easy to store Secure Notes, recovery codes, or standalone PINs.
+- **Smart PIN & Note Auditing**: Blank passwords are never marked Compromised, 4–5 digit numeric PINs are only flagged if found in `weak_passwords.txt`, and a per-entry **"Ignore security warnings"** toggle excludes fixed PINs from Vault Health penalties.
+
+### 5. Security & Stability Hardening
+- Upgraded backup KDF to **210,000 PBKDF2 iterations** (backward-compatible with legacy 100,000-iteration backups) with an 8-character minimum backup password.
+- Added brute-force lockout backoff on failed master password attempts, strict `BIOMETRIC_STRONG` enforcement, monotonic `elapsedRealtime()` auto-lock timing, and elimination of plaintext secrets from saved instance state bundles.
+
+---
+
 ## What's New in v1.6.1 (Maintenance & Quality-of-Life Update)
 
 AIPOS Password Manager **v1.6.1** is a focused quality-of-life and stability update bringing seamless inline password generation, navigation refinements, enhanced recovery key flexibility, system security improvements for Android 14+, and camera reliability fixes.

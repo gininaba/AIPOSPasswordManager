@@ -17,8 +17,8 @@ android {
         applicationId = "com.aipos.aipospm"
         minSdk = 24
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.6.1"
+        versionCode = 12
+        versionName = "1.7.0-beta.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -76,6 +76,8 @@ dependencies {
 
     // Security
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.autofill)
     implementation(libs.androidx.fragment) // Override transitive fragment 1.2.5 from biometric — fixes 16-bit requestCode crash
     implementation(libs.androidx.security.crypto)
     implementation(libs.gson)

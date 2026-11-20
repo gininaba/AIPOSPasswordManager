@@ -15,6 +15,7 @@ import com.aipos.aipospm.data.CategoryType
 import com.aipos.aipospm.data.CategoryPresets
 import com.aipos.aipospm.data.VaultPreferencesManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * ViewModel for managing custom categories/folders.
@@ -79,12 +80,12 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
     fun loadPresetCategories(type: CategoryType? = null, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val existing = categoryDao.getAllCategoriesSync()
-            val existingNames = existing.map { it.name.trim().lowercase() }.toSet()
+            val existingByTypeAndName = existing.map { it.type to it.name.trim().lowercase() }.toSet()
             val toInsert = mutableListOf<Category>()
 
             if (type == null || type == CategoryType.PASSWORD) {
                 CategoryPresets.PASSWORD_PRESETS.forEach { name ->
-                    if (!existingNames.contains(name.lowercase())) {
+                    if (!existingByTypeAndName.contains(CategoryType.PASSWORD.name to name.lowercase())) {
                         toInsert.add(Category(name = name, type = CategoryType.PASSWORD.name))
                     }
                 }
@@ -92,7 +93,7 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
 
             if (type == null || type == CategoryType.API_KEY) {
                 CategoryPresets.API_KEY_PRESETS.forEach { name ->
-                    if (!existingNames.contains(name.lowercase())) {
+                    if (!existingByTypeAndName.contains(CategoryType.API_KEY.name to name.lowercase())) {
                         toInsert.add(Category(name = name, type = CategoryType.API_KEY.name))
                     }
                 }
@@ -102,7 +103,11 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
                 categoryDao.insertCategories(toInsert)
             }
             VaultPreferencesManager.getInstance(getApplication()).setHasSeededCategoryPresets(true)
-            onComplete?.invoke()
+            if (onComplete != null) {
+                withContext(Dispatchers.Main) {
+                    onComplete.invoke()
+                }
+            }
         }
     }
 

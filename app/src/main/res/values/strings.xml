@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">AIPOS Password Manager</string>
+    <string name="passkey_provider_subtitle">100% offline Passwords &amp; Passkeys stored in AIPOS Vault</string>
 </resources>

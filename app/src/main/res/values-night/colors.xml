@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Adaptive Autofill Dropdown Tokens (Dark) -->
+    <color name="autofill_card_bg">#FF161F30</color>
+    <color name="autofill_icon_bg">#FF114B4E</color>
+    <color name="autofill_text_primary">#FFF1F5F9</color>
+    <color name="autofill_text_secondary">#FF9CA3AF</color>
+    <color name="autofill_accent">#FF2DD4BF</color>
+</resources>
+

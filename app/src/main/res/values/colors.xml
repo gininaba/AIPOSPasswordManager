@@ -7,4 +7,11 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Adaptive Autofill Dropdown Tokens (Light) -->
+    <color name="autofill_card_bg">#FFFFFFFF</color>
+    <color name="autofill_icon_bg">#FFCCFBF1</color>
+    <color name="autofill_text_primary">#FF0F172A</color>
+    <color name="autofill_text_secondary">#FF475569</color>
+    <color name="autofill_accent">#FF0F766E</color>
 </resources>

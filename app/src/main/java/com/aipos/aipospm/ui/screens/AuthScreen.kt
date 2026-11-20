@@ -77,8 +77,8 @@ fun AuthScreen(
     onAuthenticated: () -> Unit,
     onBiometricClick: () -> Unit
 ) {
-    var password by rememberSaveable { mutableStateOf("") }
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val uiState by authViewModel.uiState.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
@@ -99,19 +99,9 @@ fun AuthScreen(
         label = "lockPulse"
     )
 
-    // Gradient shimmer angle
-    val shimmerAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shimmer"
-    )
-
     LaunchedEffect(uiState.isAuthenticated) {
         if (uiState.isAuthenticated) {
+            password = ""
             showSuccess = true
             kotlinx.coroutines.delay(600)
             onAuthenticated()
@@ -237,7 +227,7 @@ fun AuthScreen(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(
                             onDone = {
-                                if (password.isNotBlank()) {
+                                if (password.isNotBlank() && !uiState.isLoading) {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     authViewModel.verifyMasterPassword(password)
                                 }
@@ -255,14 +245,14 @@ fun AuthScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
-                        enabled = password.isNotBlank(),
+                        enabled = password.isNotBlank() && !uiState.isLoading,
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
                         Text(
-                            text = "Unlock",
+                            text = if (uiState.isLoading) "Unlocking..." else "Unlock",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -327,11 +317,11 @@ fun AuthScreen(
     }
 
     if (showRecoveryDialog) {
-        var recoveryKeyInput by rememberSaveable { mutableStateOf("") }
-        var newRecoveryPassword by rememberSaveable { mutableStateOf("") }
-        var confirmRecoveryPassword by rememberSaveable { mutableStateOf("") }
-        var newPwVisible by rememberSaveable { mutableStateOf(false) }
-        var confirmPwVisible by rememberSaveable { mutableStateOf(false) }
+        var recoveryKeyInput by remember { mutableStateOf("") }
+        var newRecoveryPassword by remember { mutableStateOf("") }
+        var confirmRecoveryPassword by remember { mutableStateOf("") }
+        var newPwVisible by remember { mutableStateOf(false) }
+        var confirmPwVisible by remember { mutableStateOf(false) }
         var resetError by remember { mutableStateOf<String?>(null) }
 
         AlertDialog(
@@ -406,23 +396,28 @@ fun AuthScreen(
                             resetError = "Passwords do not match"
                             return@TextButton
                         }
-                        if (newRecoveryPassword.length < 8) {
-                            resetError = "Password must be at least 8 characters"
+                        if (newRecoveryPassword.length < AuthViewModel.MIN_MASTER_PASSWORD_LENGTH) {
+                            resetError = "Password must be at least ${AuthViewModel.MIN_MASTER_PASSWORD_LENGTH} characters"
                             return@TextButton
                         }
-                        val success = authViewModel.resetMasterPasswordWithRecoveryKey(
+                        resetError = null
+                        authViewModel.resetMasterPasswordWithRecoveryKey(
                             recoveryKeyInput,
                             newRecoveryPassword
-                        )
-                        if (success) {
-                            showRecoveryDialog = false
-                        } else {
-                            resetError = "Invalid recovery key"
+                        ) { success, errMsg ->
+                            if (success) {
+                                recoveryKeyInput = ""
+                                newRecoveryPassword = ""
+                                confirmRecoveryPassword = ""
+                                showRecoveryDialog = false
+                            } else {
+                                resetError = errMsg ?: "Invalid recovery key"
+                            }
                         }
                     },
-                    enabled = recoveryKeyInput.isNotBlank() && newRecoveryPassword.isNotBlank() && confirmRecoveryPassword.isNotBlank()
+                    enabled = !uiState.isLoading && recoveryKeyInput.isNotBlank() && newRecoveryPassword.isNotBlank() && confirmRecoveryPassword.isNotBlank()
                 ) {
-                    Text("Reset Vault")
+                    Text(if (uiState.isLoading) "Verifying..." else "Reset Vault")
                 }
             },
             dismissButton = {

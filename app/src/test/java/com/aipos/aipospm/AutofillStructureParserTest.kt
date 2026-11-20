@@ -3,7 +3,11 @@ package com.aipos.aipospm
 import android.text.InputType
 import android.view.View
 import com.aipos.aipospm.autofill.AutofillStructureParser
+import com.aipos.aipospm.autofill.ParsedAutofillStructure
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -62,5 +66,48 @@ class AutofillStructureParserTest {
     fun testGenericTextField() {
         assertFalse(AutofillStructureParser.isPasswordField(null, InputType.TYPE_CLASS_TEXT, "notes_content", "Write notes here"))
         assertFalse(AutofillStructureParser.isUsernameField(null, InputType.TYPE_CLASS_TEXT, "notes_content", "Write notes here"))
+    }
+
+    @Test
+    fun testNewPasswordAndConfirmPasswordDetection() {
+        assertTrue(AutofillStructureParser.isNewPasswordField(arrayOf("newPassword"), null, null))
+        assertTrue(AutofillStructureParser.isNewPasswordField(null, "signup_password", null))
+        assertTrue(AutofillStructureParser.isNewPasswordField(null, null, "Create password"))
+        assertFalse(AutofillStructureParser.isNewPasswordField(arrayOf(View.AUTOFILL_HINT_PASSWORD), "login_password", "Password"))
+
+        assertTrue(AutofillStructureParser.isConfirmPasswordField("confirm_password", null))
+        assertTrue(AutofillStructureParser.isConfirmPasswordField(null, "Retype password"))
+        assertFalse(AutofillStructureParser.isConfirmPasswordField("current_password", "Enter password"))
+    }
+
+    @Test
+    fun testMergeSaveStepsTwoStepLogin() {
+        val step1UsernameOnly = ParsedAutofillStructure(
+            usernameId = null,
+            passwordId = null,
+            webDomain = "accounts.github.com",
+            packageName = "com.android.chrome",
+            usernameText = "octocat@github.com",
+            passwordText = null
+        )
+        val step2PasswordOnly = ParsedAutofillStructure(
+            usernameId = null,
+            passwordId = null,
+            webDomain = "accounts.github.com",
+            packageName = "com.android.chrome",
+            usernameText = null,
+            passwordText = "SuperSecret#123"
+        )
+
+        // Newest step first
+        val merged = AutofillStructureParser.mergeSaveSteps(listOf(step2PasswordOnly, step1UsernameOnly))
+        assertNotNull(merged)
+        assertEquals("octocat@github.com", merged!!.username)
+        assertEquals("SuperSecret#123", merged.password)
+        assertEquals("accounts.github.com", merged.webDomain)
+        assertEquals("com.android.chrome", merged.packageName)
+
+        // Missing password must return null so we never prompt to save blank passwords
+        assertNull(AutofillStructureParser.mergeSaveSteps(listOf(step1UsernameOnly)))
     }
 }

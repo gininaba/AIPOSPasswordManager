@@ -2,6 +2,7 @@ package com.aipos.aipospm.ui.viewmodels
 
 import android.app.Application
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.withTransaction
@@ -9,12 +10,15 @@ import com.aipos.aipospm.data.ApiKeyEntry
 import com.aipos.aipospm.data.AppDatabase
 import com.aipos.aipospm.data.Category
 import com.aipos.aipospm.data.CategoryType
+import com.aipos.aipospm.data.PasskeyEntry
 import com.aipos.aipospm.data.PasswordEntry
 import com.aipos.aipospm.data.SortOption
 import com.aipos.aipospm.data.VaultPreferencesManager
 import com.aipos.aipospm.security.BackupManager
 import com.aipos.aipospm.security.CryptoManager
+import com.aipos.aipospm.security.EncryptedVaultException
 import com.aipos.aipospm.security.PasswordBreachChecker
+import com.aipos.aipospm.security.VaultImportParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +42,8 @@ data class BackupPayload(
     val version: Int?,
     val categories: List<CategoryBackup>?,
     val passwords: List<PasswordBackup>?,
-    val apiKeys: List<ApiKeyBackup>?
+    val apiKeys: List<ApiKeyBackup>?,
+    val passkeys: List<PasskeyBackup>? = null
 )
 
 data class CategoryBackup(
@@ -61,7 +66,8 @@ data class PasswordBackup(
     val updatedAt: Long?,
     val plaintextTotp: String? = null,
     val customOrder: Int? = null,
-    val icon: String? = null
+    val icon: String? = null,
+    val excludeFromAudit: Boolean? = null
 )
 
 data class ApiKeyBackup(
@@ -77,10 +83,32 @@ data class ApiKeyBackup(
     val icon: String? = null
 )
 
+data class PasskeyBackup(
+    val credentialId: String?,
+    val rpId: String?,
+    val rpName: String?,
+    val userHandle: String?,
+    val userName: String?,
+    val userDisplayName: String?,
+    val plaintextPrivateKey: String?,
+    val publicKeyCose: String?,
+    val signCount: Long?,
+    val createdAt: Long?,
+    val lastUsedAt: Long?
+)
+
 data class VaultAudit(
     val compromisedIds: Set<Int> = emptySet(),
-    val reusedIds: Set<Int> = emptySet()
+    val reusedIds: Set<Int> = emptySet(),
+    val auditableCount: Int = 0
 )
+
+sealed class VaultImportResult {
+    data class Success(val count: Int) : VaultImportResult()
+    data class EncryptedExport(val message: String) : VaultImportResult()
+    data class Empty(val message: String) : VaultImportResult()
+    data class Error(val message: String) : VaultImportResult()
+}
 
 data class PasswordUiState(
     val selectedPassword: PasswordEntry? = null,
@@ -95,7 +123,9 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
 
     private val db = AppDatabase.getInstance(application)
     private val passwordDao = db.passwordDao()
-    private val cryptoManager = CryptoManager()
+    private val cryptoManager = CryptoManager.shared
+    private val backupManager = BackupManager.shared
+    private val gson = com.google.gson.Gson()
     private val vaultPrefs = VaultPreferencesManager.getInstance(application)
     private val decryptionCache = java.util.concurrent.ConcurrentHashMap<String, String>()
 
@@ -144,19 +174,26 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         .map { list ->
             val compIds = mutableSetOf<Int>()
             val plainMap = mutableMapOf<String, MutableList<Int>>()
+            var auditableCount = 0
 
             for (entry in list) {
+                if (entry.excludeFromAudit) continue
                 val plain = decryptPassword(entry)
+                if (plain.isBlank() || plain == "*** Decryption failed ***") continue
+
+                auditableCount++
                 if (isPasswordBreached(plain)) {
                     compIds.add(entry.id)
                 }
-                if (plain.isNotBlank() && plain != "*** Decryption failed ***") {
-                    plainMap.getOrPut(plain) { mutableListOf() }.add(entry.id)
-                }
+                plainMap.getOrPut(plain) { mutableListOf() }.add(entry.id)
             }
 
             val rIds = plainMap.filter { it.value.size > 1 }.values.flatten().toSet()
-            VaultAudit(compromisedIds = compIds, reusedIds = rIds)
+            VaultAudit(
+                compromisedIds = compIds,
+                reusedIds = rIds,
+                auditableCount = auditableCount
+            )
         }
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), VaultAudit())
@@ -167,6 +204,14 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
 
     val reusedPasswordCount: StateFlow<Int> = vaultAudit
         .map { it.reusedIds.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val uniqueIssueCount: StateFlow<Int> = vaultAudit
+        .map { (it.compromisedIds union it.reusedIds).size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    val auditablePasswordCount: StateFlow<Int> = vaultAudit
+        .map { it.auditableCount }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     val reusedPasswordIds: StateFlow<Set<Int>> = vaultAudit
@@ -358,39 +403,36 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         categoryId: Int?,
         isFavorite: Boolean,
         totpSecret: String? = null,
-        icon: String? = null
+        icon: String? = null,
+        excludeFromAudit: Boolean = false
     ) {
         viewModelScope.launch {
             try {
-                val (encrypted, iv) = cryptoManager.encrypt(password)
-                decryptionCache["${encrypted}:${iv}"] = password
+                val (encrypted, iv, encryptedTotp) = withContext(Dispatchers.Default) {
+                    val (enc, pwIv) = cryptoManager.encrypt(password)
+                    val totpPair: Pair<String, String>? = if (!totpSecret.isNullOrBlank()) {
+                        cryptoManager.encrypt(totpSecret)
+                    } else null
+                    Triple(enc, pwIv, totpPair)
+                }
 
-                // Encrypt TOTP secret if provided
-                val encryptedTotp: Pair<String, String>? = if (!totpSecret.isNullOrBlank()) {
-                    cryptoManager.encrypt(totpSecret)
+                val existing = if (id != null && id > 0) {
+                    val selected = _uiState.value.selectedPassword
+                    if (selected != null && selected.id == id) {
+                        selected
+                    } else {
+                        passwordDao.getPasswordByIdSync(id)
+                    }
                 } else null
 
-                val createdAt = if (id != null && id > 0) {
-                    val selected = _uiState.value.selectedPassword
-                    if (selected != null && selected.id == id) {
-                        selected.createdAt
-                    } else {
-                        passwordDao.getPasswordById(id).first()?.createdAt ?: System.currentTimeMillis()
-                    }
-                } else {
-                    System.currentTimeMillis()
+                if (existing != null) {
+                    decryptionCache.remove("${existing.encryptedPassword}:${existing.iv}")
                 }
+                decryptionCache["${encrypted}:${iv}"] = password
 
-                val customOrder = if (id != null && id > 0) {
-                    val selected = _uiState.value.selectedPassword
-                    if (selected != null && selected.id == id) {
-                        selected.customOrder
-                    } else {
-                        passwordDao.getPasswordById(id).first()?.customOrder ?: 0
-                    }
-                } else {
-                    0
-                }
+                val now = System.currentTimeMillis()
+                val createdAt = existing?.createdAt ?: now
+                val customOrder = existing?.customOrder ?: 0
 
                 val entry = PasswordEntry(
                     id = id ?: 0,
@@ -403,11 +445,12 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     categoryId = categoryId,
                     isFavorite = isFavorite,
                     createdAt = createdAt,
-                    updatedAt = System.currentTimeMillis(),
+                    updatedAt = now,
                     encryptedTotpSecret = encryptedTotp?.first,
                     totpIv = encryptedTotp?.second,
                     customOrder = customOrder,
-                    icon = icon
+                    icon = icon,
+                    excludeFromAudit = excludeFromAudit
                 )
                 if (id != null) {
                     passwordDao.updatePassword(entry)
@@ -438,21 +481,38 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                 val categoriesList = db.categoryDao().getAllCategoriesSync()
                 val passwordsList = passwordDao.getAllPasswords().first()
                 val apiKeysList = db.apiKeyDao().getAllApiKeys().first()
+                val passkeysList = db.passkeyDao().getActivePasskeysList()
 
-                // Step 2: Decrypt Keystore-encrypted passwords into plaintext for the backup on Dispatchers.Default.
-                val (categoriesBackup, passwordsBackup, apiKeysBackup) = withContext(Dispatchers.Default) {
+                // Step 2: Decrypt Keystore-encrypted secrets into plaintext for the backup on Dispatchers.Default.
+                // Fail loudly if any credential fails to decrypt so we never export silent data loss.
+                data class ExportBundle(
+                    val categories: List<CategoryBackup>,
+                    val passwords: List<PasswordBackup>,
+                    val apiKeys: List<ApiKeyBackup>,
+                    val passkeys: List<PasskeyBackup>
+                )
+                val bundle = withContext(Dispatchers.Default) {
                     val catBackup = categoriesList.map {
                         CategoryBackup(it.id, it.name, it.createdAt, it.type)
                     }
                     val pwBackup = passwordsList.map {
+                        val plainPw = try {
+                            cryptoManager.decrypt(it.encryptedPassword, it.iv)
+                        } catch (e: Exception) {
+                            throw IllegalStateException("Failed to decrypt password '${it.title}'. Export aborted to prevent data loss.", e)
+                        }
                         val plaintextTotp = if (it.encryptedTotpSecret != null && it.totpIv != null) {
-                            try { cryptoManager.decrypt(it.encryptedTotpSecret, it.totpIv) } catch (_: Exception) { null }
+                            try {
+                                cryptoManager.decrypt(it.encryptedTotpSecret, it.totpIv)
+                            } catch (e: Exception) {
+                                throw IllegalStateException("Failed to decrypt 2FA secret for '${it.title}'. Export aborted to prevent data loss.", e)
+                            }
                         } else null
                         PasswordBackup(
                             id = it.id,
                             title = it.title,
                             username = it.username,
-                            plaintext = decryptPassword(it),
+                            plaintext = plainPw,
                             url = it.url,
                             notes = it.notes,
                             categoryId = it.categoryId,
@@ -461,13 +521,16 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             updatedAt = it.updatedAt,
                             plaintextTotp = plaintextTotp,
                             customOrder = it.customOrder,
-                            icon = it.icon
+                            icon = it.icon,
+                            excludeFromAudit = it.excludeFromAudit
                         )
                     }
                     val apiBackup = apiKeysList.map {
                         val plaintext = try {
                             cryptoManager.decrypt(it.encryptedApiKey, it.iv)
-                        } catch (e: Exception) { "" }
+                        } catch (e: Exception) {
+                            throw IllegalStateException("Failed to decrypt API key '${it.serviceName}'. Export aborted to prevent data loss.", e)
+                        }
                         ApiKeyBackup(
                             id = it.id,
                             serviceName = it.serviceName,
@@ -481,20 +544,41 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             icon = it.icon
                         )
                     }
-                    Triple(catBackup, pwBackup, apiBackup)
+                    val pkBackup = passkeysList.map {
+                        val plainKey = try {
+                            cryptoManager.decrypt(it.encryptedPrivateKey, it.privateKeyIv)
+                        } catch (e: Exception) {
+                            throw IllegalStateException("Failed to decrypt passkey '${it.rpId}'. Export aborted to prevent data loss.", e)
+                        }
+                        PasskeyBackup(
+                            credentialId = it.credentialId,
+                            rpId = it.rpId,
+                            rpName = it.rpName,
+                            userHandle = it.userHandle,
+                            userName = it.userName,
+                            userDisplayName = it.userDisplayName,
+                            plaintextPrivateKey = plainKey,
+                            publicKeyCose = it.publicKeyCose,
+                            signCount = it.signCount,
+                            createdAt = it.createdAt,
+                            lastUsedAt = it.lastUsedAt
+                        )
+                    }
+                    ExportBundle(catBackup, pwBackup, apiBackup, pkBackup)
                 }
 
                 // Step 3: Serialize, PBKDF2-encrypt, and write to file.
                 // This is CPU + I/O heavy — run on Dispatchers.IO.
                 withContext(Dispatchers.IO) {
                     val payload = BackupPayload(
-                        version = 1,
-                        categories = categoriesBackup,
-                        passwords = passwordsBackup,
-                        apiKeys = apiKeysBackup
+                        version = 7,
+                        categories = bundle.categories,
+                        passwords = bundle.passwords,
+                        apiKeys = bundle.apiKeys,
+                        passkeys = bundle.passkeys
                     )
-                    val payloadJson = com.google.gson.Gson().toJson(payload)
-                    val encryptedBackup = BackupManager().encryptBackup(payloadJson, password)
+                    val payloadJson = gson.toJson(payload)
+                    val encryptedBackup = backupManager.encryptBackup(payloadJson, password)
 
                     val contentResolver = getApplication<Application>().contentResolver
                     contentResolver.openOutputStream(uri)?.use { outputStream ->
@@ -532,18 +616,18 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                     }
 
                     val decryptedJson = try {
-                        BackupManager().decryptBackup(backupJson, password)
+                        backupManager.decryptBackup(backupJson, password)
                     } catch (e: Exception) {
                         throw IllegalArgumentException("Wrong backup password or corrupted backup file.")
                     }
 
                     val parsed = try {
-                        com.google.gson.Gson().fromJson(decryptedJson, BackupPayload::class.java)
+                        gson.fromJson(decryptedJson, BackupPayload::class.java)
                     } catch (e: Exception) {
                         throw IllegalArgumentException("Invalid backup file format.")
                     }
 
-                    if (parsed == null || (parsed.version != null && parsed.version !in 1..10)) {
+                    if (parsed == null || parsed.version == null || parsed.version !in 1..10) {
                         throw IllegalArgumentException("Unsupported or corrupt backup version.")
                     }
                     parsed
@@ -551,7 +635,8 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
 
                 // Step 2: Re-encrypt all plaintext values with the Android Keystore key off the main thread.
                 data class EncryptedPwEntry(val enc: String, val iv: String, val totpEnc: String?, val totpIv: String?, val backup: PasswordBackup)
-                val (encryptedPasswords, encryptedApiKeys) = withContext(Dispatchers.Default) {
+                data class EncryptedPasskeyBackup(val encKey: String, val iv: String, val backup: PasskeyBackup)
+                val (encryptedPasswords, encryptedApiKeys, encryptedPasskeys) = withContext(Dispatchers.Default) {
                     val pwList = payload.passwords.orEmpty().map { p ->
                         val (enc, iv) = cryptoManager.encrypt(p.plaintext ?: "")
                         val totpPair = if (!p.plaintextTotp.isNullOrBlank()) {
@@ -563,7 +648,18 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                         val (enc, iv) = cryptoManager.encrypt(k.plaintext ?: "")
                         Triple(enc, iv, k)
                     }
-                    Pair(pwList, apiList)
+                    val pkList = payload.passkeys.orEmpty().mapNotNull { pk ->
+                        val plainKey = pk.plaintextPrivateKey
+                        val credId = pk.credentialId
+                        val rpId = pk.rpId
+                        if (plainKey.isNullOrBlank() || credId.isNullOrBlank() || rpId.isNullOrBlank()) {
+                            null
+                        } else {
+                            val (enc, iv) = cryptoManager.encrypt(plainKey)
+                            EncryptedPasskeyBackup(enc, iv, pk)
+                        }
+                    }
+                    Triple(pwList, apiList, pkList)
                 }
 
                 // Step 3: Atomically restore the database using batch insertions.
@@ -571,18 +667,46 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                 db.withTransaction {
                     db.passwordDao().clearTable()
                     db.apiKeyDao().clearTable()
+                    db.passkeyDao().clearTable()
                     db.categoryDao().clearTable()
 
-                    // Insert categories and build an old-ID → new-ID mapping
-                    val categoryIdMap = mutableMapOf<Int, Int>()
+                    // Insert categories and build old-ID → new-ID mappings per type (handling legacy untyped categories)
+                    val passwordCategoryIdMap = mutableMapOf<Int, Int>()
+                    val apiKeyCategoryIdMap = mutableMapOf<Int, Int>()
+                    val apiKeyReferencedCatIds = payload.apiKeys.orEmpty().mapNotNull { it.categoryId }.toSet()
+                    val passwordReferencedCatIds = payload.passwords.orEmpty().mapNotNull { it.categoryId }.toSet()
+
                     for (cat in payload.categories.orEmpty()) {
                         val name = cat.name ?: ""
-                        val catType = cat.type ?: CategoryType.PASSWORD.name
-                        if (name.isNotEmpty()) {
+                        if (name.isEmpty()) continue
+                        val createdAt = cat.createdAt ?: System.currentTimeMillis()
+                        if (cat.type != null) {
                             val newId = db.categoryDao().insertCategory(
-                                Category(name = name, type = catType, createdAt = cat.createdAt ?: System.currentTimeMillis())
+                                Category(name = name, type = cat.type, createdAt = createdAt)
                             ).toInt()
-                            cat.id?.let { categoryIdMap[it] = newId }
+                            cat.id?.let { oldId ->
+                                if (cat.type == CategoryType.API_KEY.name) {
+                                    apiKeyCategoryIdMap[oldId] = newId
+                                } else {
+                                    passwordCategoryIdMap[oldId] = newId
+                                }
+                            }
+                        } else {
+                            // Legacy pre-v5 backup: infer type(s) from references so API keys keep valid categories
+                            val usedByApi = cat.id != null && cat.id in apiKeyReferencedCatIds
+                            val usedByPw = cat.id == null || cat.id in passwordReferencedCatIds || !usedByApi
+                            if (usedByPw) {
+                                val newPwId = db.categoryDao().insertCategory(
+                                    Category(name = name, type = CategoryType.PASSWORD.name, createdAt = createdAt)
+                                ).toInt()
+                                cat.id?.let { passwordCategoryIdMap[it] = newPwId }
+                            }
+                            if (usedByApi) {
+                                val newApiId = db.categoryDao().insertCategory(
+                                    Category(name = name, type = CategoryType.API_KEY.name, createdAt = createdAt)
+                                ).toInt()
+                                cat.id?.let { apiKeyCategoryIdMap[it] = newApiId }
+                            }
                         }
                     }
 
@@ -595,14 +719,15 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             iv = entry.iv,
                             url = entry.backup.url ?: "",
                             notes = entry.backup.notes ?: "",
-                            categoryId = entry.backup.categoryId?.let { categoryIdMap[it] },
+                            categoryId = entry.backup.categoryId?.let { passwordCategoryIdMap[it] },
                             isFavorite = entry.backup.isFavorite ?: false,
                             createdAt = entry.backup.createdAt ?: System.currentTimeMillis(),
                             updatedAt = entry.backup.updatedAt ?: System.currentTimeMillis(),
                             encryptedTotpSecret = entry.totpEnc,
                             totpIv = entry.totpIv,
                             customOrder = entry.backup.customOrder ?: 0,
-                            icon = entry.backup.icon
+                            icon = entry.backup.icon,
+                            excludeFromAudit = entry.backup.excludeFromAudit ?: false
                         )
                     }
                     passwordDao.insertPasswords(passwordsToInsert)
@@ -614,7 +739,7 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                             encryptedApiKey = enc,
                             iv = iv,
                             notes = k.notes ?: "",
-                            categoryId = k.categoryId?.let { categoryIdMap[it] },
+                            categoryId = k.categoryId?.let { apiKeyCategoryIdMap[it] },
                             isFavorite = k.isFavorite ?: false,
                             createdAt = k.createdAt ?: System.currentTimeMillis(),
                             updatedAt = k.updatedAt ?: System.currentTimeMillis(),
@@ -623,6 +748,28 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                         )
                     }
                     db.apiKeyDao().insertApiKeys(apiKeysToInsert)
+
+                    // Batch insert Passkeys
+                    if (encryptedPasskeys.isNotEmpty()) {
+                        val now = System.currentTimeMillis()
+                        val passkeysToInsert = encryptedPasskeys.map { (encKey, iv, pk) ->
+                            PasskeyEntry(
+                                credentialId = pk.credentialId ?: "",
+                                rpId = pk.rpId ?: "",
+                                rpName = pk.rpName ?: (pk.rpId ?: ""),
+                                userHandle = pk.userHandle ?: "",
+                                userName = pk.userName ?: "",
+                                userDisplayName = pk.userDisplayName ?: "",
+                                encryptedPrivateKey = encKey,
+                                privateKeyIv = iv,
+                                publicKeyCose = pk.publicKeyCose ?: "",
+                                signCount = pk.signCount ?: 0L,
+                                createdAt = pk.createdAt ?: now,
+                                lastUsedAt = pk.lastUsedAt ?: now
+                            )
+                        }
+                        db.passkeyDao().insertPasskeys(passkeysToInsert)
+                    }
                 }
 
                 clearDecryptionCache()
@@ -633,23 +780,70 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun importCsv(
+    private fun resolveDisplayName(uri: Uri): String? {
+        return try {
+            getApplication<Application>().contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0) cursor.getString(idx) else null
+                } else null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Unified third-party vault importer supporting Bitwarden unencrypted JSON (.json)
+     * as well as Bitwarden, KeePass, and 1Password CSV (.csv) exports.
+     */
+    fun importVaultFile(
         uri: Uri,
-        onSuccess: (insertedCount: Int) -> Unit,
-        onError: (String) -> Unit
+        onResult: (VaultImportResult) -> Unit
     ) {
         viewModelScope.launch {
             try {
-                val importEntries = withContext(Dispatchers.IO) {
+                val parseResult = withContext(Dispatchers.IO) {
                     val contentResolver = getApplication<Application>().contentResolver
+                    val fileName = resolveDisplayName(uri)
                     contentResolver.openInputStream(uri)?.use { stream ->
-                        val parsed = com.aipos.aipospm.security.CsvParser.parse(stream)
-                        com.aipos.aipospm.security.CsvImportMapper.map(parsed)
-                    } ?: throw IllegalStateException("Could not open the selected CSV file.")
+                        VaultImportParser.parse(stream, fileName)
+                    } ?: Result.failure(IllegalStateException("Could not open the selected file."))
+                }
+
+                val importEntries = parseResult.getOrElse { throwable ->
+                    when (throwable) {
+                        is EncryptedVaultException -> {
+                            onResult(
+                                VaultImportResult.EncryptedExport(
+                                    throwable.message ?: "Encrypted Bitwarden JSON exports cannot be imported. Please export an unencrypted JSON."
+                                )
+                            )
+                        }
+                        else -> {
+                            onResult(
+                                VaultImportResult.Error(
+                                    throwable.message ?: "Failed to parse the selected vault file."
+                                )
+                            )
+                        }
+                    }
+                    return@launch
                 }
 
                 if (importEntries.isEmpty()) {
-                    throw IllegalArgumentException("No valid credentials found in the CSV file.")
+                    onResult(
+                        VaultImportResult.Empty(
+                            "No credentials could be imported. Please verify that the file is a valid CSV or unencrypted Bitwarden JSON export containing login entries."
+                        )
+                    )
+                    return@launch
                 }
 
                 data class EncryptedImportEntry(
@@ -730,9 +924,24 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 clearDecryptionCache()
-                onSuccess(importEntries.size)
+                onResult(VaultImportResult.Success(importEntries.size))
             } catch (e: Exception) {
-                onError(e.message ?: "Failed to import CSV")
+                onResult(VaultImportResult.Error(e.message ?: "Failed to import vault file"))
+            }
+        }
+    }
+
+    fun importCsv(
+        uri: Uri,
+        onSuccess: (insertedCount: Int) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        importVaultFile(uri) { result ->
+            when (result) {
+                is VaultImportResult.Success -> onSuccess(result.count)
+                is VaultImportResult.EncryptedExport -> onError(result.message)
+                is VaultImportResult.Empty -> onError(result.message)
+                is VaultImportResult.Error -> onError(result.message)
             }
         }
     }
@@ -745,16 +954,15 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
         loadJob = viewModelScope.launch {
             passwordDao.getPasswordById(id).collect { entry ->
                 if (entry != null) {
-                    val decrypted = try {
-                        cryptoManager.decrypt(entry.encryptedPassword, entry.iv)
-                    } catch (e: Exception) {
-                        "*** Decryption failed ***"
+                    val (decrypted, decryptedTotp) = withContext(Dispatchers.Default) {
+                        val pw = decryptPassword(entry)
+                        val totp = if (entry.encryptedTotpSecret != null && entry.totpIv != null) {
+                            try {
+                                cryptoManager.decrypt(entry.encryptedTotpSecret, entry.totpIv)
+                            } catch (_: Exception) { "" }
+                        } else ""
+                        Pair(pw, totp)
                     }
-                    val decryptedTotp = if (entry.encryptedTotpSecret != null && entry.totpIv != null) {
-                        try {
-                            cryptoManager.decrypt(entry.encryptedTotpSecret, entry.totpIv)
-                        } catch (_: Exception) { "" }
-                    } else ""
                     _uiState.value = _uiState.value.copy(
                         selectedPassword = entry,
                         decryptedPassword = decrypted,
@@ -838,6 +1046,12 @@ class PasswordViewModel(application: Application) : AndroidViewModel(application
     fun toggleFavorite(entry: PasswordEntry) {
         viewModelScope.launch {
             passwordDao.updatePassword(entry.copy(isFavorite = !entry.isFavorite))
+        }
+    }
+
+    fun setExcludeFromAudit(entry: PasswordEntry, exclude: Boolean) {
+        viewModelScope.launch {
+            passwordDao.updatePassword(entry.copy(excludeFromAudit = exclude))
         }
     }
 

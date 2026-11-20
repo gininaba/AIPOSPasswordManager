@@ -90,13 +90,13 @@ fun AddEditApiKeyScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var serviceName by rememberSaveable { mutableStateOf("") }
-    var apiKey by rememberSaveable { mutableStateOf("") }
-    var notes by rememberSaveable { mutableStateOf("") }
+    var apiKey by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
     var selectedCategoryId by rememberSaveable { mutableStateOf<Int?>(null) }
     var isFavorite by rememberSaveable { mutableStateOf(false) }
-    var keyVisible by rememberSaveable { mutableStateOf(false) }
+    var keyVisible by remember { mutableStateOf(false) }
     val isEditing = apiKeyId != null && apiKeyId > 0
-    var hasLoadedInitialData by rememberSaveable { mutableStateOf(false) }
+    var hasLoadedInitialData by remember { mutableStateOf(false) }
     var iconId by rememberSaveable { mutableStateOf<String?>(null) }
     var showIconPicker by rememberSaveable { mutableStateOf(false) }
     val iconPickerSheetState = rememberModalBottomSheetState()

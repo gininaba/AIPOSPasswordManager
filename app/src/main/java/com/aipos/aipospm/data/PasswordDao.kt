@@ -23,6 +23,12 @@ interface PasswordDao {
     @Query("SELECT * FROM passwords WHERE id = :id")
     fun getPasswordById(id: Int): Flow<PasswordEntry?>
 
+    @Query("SELECT * FROM passwords WHERE id = :id LIMIT 1")
+    suspend fun getPasswordByIdSync(id: Int): PasswordEntry?
+
+    @Query("SELECT * FROM passwords WHERE id = :id AND isDeleted = 0 LIMIT 1")
+    suspend fun getActivePasswordByIdSync(id: Int): PasswordEntry?
+
     @Query("SELECT * FROM passwords WHERE isFavorite = 1 AND isDeleted = 0 ORDER BY updatedAt DESC")
     fun getFavoritePasswords(): Flow<List<PasswordEntry>>
 

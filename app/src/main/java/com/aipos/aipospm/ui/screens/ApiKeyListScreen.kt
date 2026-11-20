@@ -46,6 +46,7 @@ import com.aipos.aipospm.data.SortOption
 import com.aipos.aipospm.ui.components.SortBottomSheet
 import com.aipos.aipospm.ui.components.VaultIconRegistry
 import com.aipos.aipospm.ui.components.VaultSectionHeader
+import com.aipos.aipospm.ui.components.getCategoryColors
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -333,6 +334,10 @@ fun ApiKeyListContent(
                 }
             } else {
                 val categoryMap = remember(categories) { categories.associateBy { it.id } }
+                val favoriteCount = remember(apiKeys) { apiKeys.count { it.isFavorite } }
+                val nonFavoriteCount = apiKeys.size - favoriteCount
+                val hasBoth = pinFavorites && favoriteCount > 0 && nonFavoriteCount > 0
+
                 LazyColumn(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -342,7 +347,6 @@ fun ApiKeyListContent(
                         key = { _, it -> it.id },
                         contentType = { _, _ -> "api_key_item" }
                     ) { index, entry ->
-                        val hasBoth = pinFavorites && apiKeys.any { it.isFavorite } && apiKeys.any { !it.isFavorite }
                         val isFirstFavorite = hasBoth && index == 0 && entry.isFavorite
                         val isFirstNonFavorite = hasBoth && !entry.isFavorite && (index == 0 || apiKeys[index - 1].isFavorite)
 
@@ -350,14 +354,14 @@ fun ApiKeyListContent(
                             if (isFirstFavorite) {
                                 VaultSectionHeader(
                                     title = "Favorites",
-                                    count = apiKeys.count { it.isFavorite },
+                                    count = favoriteCount,
                                     icon = Icons.Default.Star,
                                     tint = MaterialTheme.colorScheme.secondary
                                 )
                             } else if (isFirstNonFavorite) {
                                 VaultSectionHeader(
                                     title = "All API Keys",
-                                    count = apiKeys.count { !it.isFavorite },
+                                    count = nonFavoriteCount,
                                     icon = Icons.Default.VpnKey,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -451,16 +455,6 @@ fun ApiKeyListContent(
 }
 
 @Composable
-fun getApiKeyCategoryColors(name: String): Pair<Color, Color> {
-    val hash = name.hashCode().absoluteValue
-    val hue = (hash % 360).toFloat()
-    val isDark = isSystemInDarkTheme()
-    val containerColor = Color.hsv(hue, 0.15f, if (isDark) 0.15f else 0.95f)
-    val contentColor = Color.hsv(hue, 0.8f, if (isDark) 0.9f else 0.4f)
-    return Pair(containerColor, contentColor)
-}
-
-@Composable
 private fun ApiKeyCard(
     entry: ApiKeyEntry,
     categoryName: String?,
@@ -540,7 +534,7 @@ private fun ApiKeyCard(
                         )
                     }
                     if (categoryName != null) {
-                        val (containerColor, contentColor) = getApiKeyCategoryColors(categoryName)
+                        val (containerColor, contentColor) = getCategoryColors(categoryName)
                         Spacer(modifier = Modifier.height(4.dp))
                         Card(
                             shape = RoundedCornerShape(6.dp),

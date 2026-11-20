@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Settings
@@ -88,6 +89,7 @@ import com.aipos.aipospm.ui.theme.WarningAmber
 import kotlinx.coroutines.launch
 import com.aipos.aipospm.ui.viewmodels.ApiKeyViewModel
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
+import com.aipos.aipospm.ui.viewmodels.PasskeyViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
 import com.aipos.aipospm.security.ClipboardHelper
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -101,21 +103,26 @@ fun HomeScreen(
     passwordViewModel: PasswordViewModel,
     apiKeyViewModel: ApiKeyViewModel,
     categoryViewModel: CategoryViewModel,
+    passkeyViewModel: PasskeyViewModel? = null,
     onNavigateToSettings: () -> Unit,
     onNavigateToAddPassword: () -> Unit,
     onNavigateToAddApiKey: () -> Unit,
     onNavigateToPasswordDetail: (Int) -> Unit,
     onNavigateToApiKeyDetail: (Int) -> Unit,
-    onNavigateToPasswordGenerator: () -> Unit
+    onNavigateToPasswordGenerator: () -> Unit,
+    onNavigateToPasskeys: () -> Unit = {}
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
 
     val passwordCount by passwordViewModel.passwordCount.collectAsStateWithLifecycle()
     val apiKeyCount by apiKeyViewModel.apiKeyCount.collectAsStateWithLifecycle()
+    val passkeyCount by (passkeyViewModel?.passkeyCount ?: remember { kotlinx.coroutines.flow.MutableStateFlow(0) }).collectAsStateWithLifecycle()
     val favoritePasswords by passwordViewModel.favoritePasswords.collectAsStateWithLifecycle()
     val favoriteApiKeys by apiKeyViewModel.favoriteApiKeys.collectAsStateWithLifecycle()
     val breachedPasswordCount by passwordViewModel.breachedPasswordCount.collectAsStateWithLifecycle()
     val reusedPasswordCount by passwordViewModel.reusedPasswordCount.collectAsStateWithLifecycle()
+    val uniqueIssueCount by passwordViewModel.uniqueIssueCount.collectAsStateWithLifecycle()
+    val auditablePasswordCount by passwordViewModel.auditablePasswordCount.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -249,10 +256,13 @@ fun HomeScreen(
                 0 -> DashboardContent(
                     passwordCount = passwordCount,
                     apiKeyCount = apiKeyCount,
+                    passkeyCount = passkeyCount,
                     favoritePasswords = favoritePasswords,
                     favoriteApiKeys = favoriteApiKeys,
                     breachedPasswordCount = breachedPasswordCount,
                     reusedPasswordCount = reusedPasswordCount,
+                    uniqueIssueCount = uniqueIssueCount,
+                    auditablePasswordCount = auditablePasswordCount,
                     onNavigateToPasswords = {
                         if (breachedPasswordCount > 0) {
                             passwordViewModel.setShowCompromisedOnlyFilter(true)
@@ -268,6 +278,7 @@ fun HomeScreen(
                     onNavigateToPasswordDetail = onNavigateToPasswordDetail,
                     onNavigateToApiKeyDetail = onNavigateToApiKeyDetail,
                     onNavigateToPasswordGenerator = onNavigateToPasswordGenerator,
+                    onNavigateToPasskeys = onNavigateToPasskeys,
                     onNavigateToAddPassword = onNavigateToAddPassword,
                     onNavigateToAddApiKey = onNavigateToAddApiKey,
                     onCopyUsername = { entry ->
@@ -277,10 +288,11 @@ fun HomeScreen(
                         }
                     },
                     onCopyApiKey = { entry ->
-                        val decrypted = apiKeyViewModel.decryptApiKey(entry)
-                        ClipboardHelper.copyAndScheduleClear(context, "API Key", decrypted)
-                        scope.launch {
-                            snackbarHostState.showSnackbar("API Key copied (clears in 30s)")
+                        apiKeyViewModel.decryptApiKeyAsync(entry) { decrypted ->
+                            ClipboardHelper.copyAndScheduleClear(context, "API Key", decrypted)
+                            scope.launch {
+                                snackbarHostState.showSnackbar("API Key copied (clears in 30s)")
+                            }
                         }
                     },
                     modifier = Modifier.padding(padding)
@@ -311,24 +323,28 @@ fun HomeScreen(
 private fun DashboardContent(
     passwordCount: Int,
     apiKeyCount: Int,
+    passkeyCount: Int = 0,
     favoritePasswords: List<PasswordEntry>,
     favoriteApiKeys: List<ApiKeyEntry>,
     breachedPasswordCount: Int,
     reusedPasswordCount: Int = 0,
+    uniqueIssueCount: Int = (breachedPasswordCount + reusedPasswordCount),
+    auditablePasswordCount: Int = passwordCount,
     onNavigateToPasswords: () -> Unit,
     onNavigateToApiKeys: () -> Unit,
     onNavigateToPasswordDetail: (Int) -> Unit,
     onNavigateToApiKeyDetail: (Int) -> Unit,
     onNavigateToPasswordGenerator: () -> Unit,
+    onNavigateToPasskeys: () -> Unit = {},
     onNavigateToAddPassword: () -> Unit,
     onNavigateToAddApiKey: () -> Unit,
     onCopyUsername: (PasswordEntry) -> Unit,
     onCopyApiKey: (ApiKeyEntry) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val totalEntries = passwordCount + apiKeyCount
-    val issueCount = (breachedPasswordCount + reusedPasswordCount).coerceAtMost(passwordCount)
-    val score = if (passwordCount == 0) 100 else (((passwordCount - issueCount).toFloat() / passwordCount) * 100).toInt()
+    val totalEntries = passwordCount + apiKeyCount + passkeyCount
+    val issueCount = uniqueIssueCount.coerceAtMost(auditablePasswordCount)
+    val score = if (auditablePasswordCount == 0) 100 else (((auditablePasswordCount - issueCount).toFloat() / auditablePasswordCount) * 100).toInt()
 
     val isCompromised = breachedPasswordCount > 0
     val isReused = reusedPasswordCount > 0
@@ -355,11 +371,6 @@ private fun DashboardContent(
         score >= 70 -> WarningAmber
         else -> DangerRed
     }
-
-    val borderStroke = BorderStroke(
-        width = 1.dp,
-        color = ringColor.copy(alpha = 0.3f)
-    )
 
     // Entrance animation state
     var isVisible by remember { mutableStateOf(false) }
@@ -540,6 +551,67 @@ private fun DashboardContent(
                             )
                             Text(
                                 text = "Create strong, random passwords locally",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outlineVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Passkeys Row (Offline FIDO2 / WebAuthn Passkeys)
+        item {
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = fadeIn(tween(500, delayMillis = 175)) + slideInVertically(tween(500, delayMillis = 175)) { -30 }
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bounceClick { onNavigateToPasskeys() },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Fingerprint,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.tertiary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (passkeyCount > 0) "Passkeys ($passkeyCount)" else "Passkeys",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Offline FIDO2 / WebAuthn passkeys (Android 14+)",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -762,13 +834,15 @@ private fun SummaryCard(
                     )
                 }
                 
+                val addBtnInteractionSource = remember { MutableInteractionSource() }
                 IconButton(
                     onClick = onAddClick,
+                    interactionSource = addBtnInteractionSource,
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
                         .background(containerColor.copy(alpha = 0.15f))
-                        .bounceClick { onAddClick() }
+                        .pressScale(addBtnInteractionSource)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,

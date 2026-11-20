@@ -23,6 +23,9 @@ interface ApiKeyDao {
     @Query("SELECT * FROM api_keys WHERE id = :id")
     fun getApiKeyById(id: Int): Flow<ApiKeyEntry?>
 
+    @Query("SELECT * FROM api_keys WHERE id = :id LIMIT 1")
+    suspend fun getApiKeyByIdSync(id: Int): ApiKeyEntry?
+
     @Query("SELECT * FROM api_keys WHERE isFavorite = 1 AND isDeleted = 0 ORDER BY updatedAt DESC")
     fun getFavoriteApiKeys(): Flow<List<ApiKeyEntry>>
 

@@ -1,6 +1,7 @@
 package com.aipos.aipospm.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
+import com.aipos.aipospm.security.PasswordStrengthEvaluator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,8 +22,25 @@ class PasswordGeneratorViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(GeneratorUiState())
     val uiState: StateFlow<GeneratorUiState> = _uiState.asStateFlow()
 
+    // In-memory handoff channel (avoids serializing plaintext passwords to SavedStateHandle/Bundle)
+    private val _pendingGeneratedPassword = MutableStateFlow<String?>(null)
+    val pendingGeneratedPassword: StateFlow<String?> = _pendingGeneratedPassword.asStateFlow()
+
     init {
         generatePassword()
+    }
+
+    fun selectGeneratedPassword(password: String) {
+        _pendingGeneratedPassword.value = password
+    }
+
+    fun consumePendingGeneratedPassword() {
+        _pendingGeneratedPassword.value = null
+    }
+
+    fun clearHistory() {
+        _pendingGeneratedPassword.value = null
+        _uiState.value = _uiState.value.copy(history = emptyList())
     }
 
     fun recordCurrentPasswordInHistory() {
@@ -72,12 +90,17 @@ class PasswordGeneratorViewModel : ViewModel() {
             useDigits = state.useDigits,
             useSymbols = state.useSymbols
         )
-        val strength = evaluateStrength(password)
+        val strength = PasswordStrengthEvaluator.evaluate(password)
         _uiState.value = state.copy(generatedPassword = password, strength = strength)
         return password
     }
 
     companion object {
+        private const val UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        private const val LOWERCASE = "abcdefghijklmnopqrstuvwxyz"
+        private const val DIGITS = "0123456789"
+        private const val SYMBOLS = "!@#\$%^&*()_+-=[]{}|;:',.<>?/~`"
+
         private val SECURE_RANDOM = java.security.SecureRandom()
 
         fun generateRandomPassword(
@@ -87,35 +110,35 @@ class PasswordGeneratorViewModel : ViewModel() {
             useDigits: Boolean = true,
             useSymbols: Boolean = true
         ): String {
-            val charPool = buildString {
-                if (useUppercase) append("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-                if (useLowercase) append("abcdefghijklmnopqrstuvwxyz")
-                if (useDigits) append("0123456789")
-                if (useSymbols) append("!@#\$%^&*()_+-=[]{}|;:',.<>?/~`")
+            if (length <= 0) return ""
+            val activePools = buildList {
+                if (useUppercase) add(UPPERCASE)
+                if (useLowercase) add(LOWERCASE)
+                if (useDigits) add(DIGITS)
+                if (useSymbols) add(SYMBOLS)
             }
-            if (charPool.isEmpty()) return ""
-            return buildString {
-                repeat(length) {
-                    append(charPool[SECURE_RANDOM.nextInt(charPool.length)])
+            if (activePools.isEmpty()) return ""
+            val combinedPool = activePools.joinToString("")
+
+            val chars = CharArray(length)
+            var index = 0
+            // Guarantee at least one character from each enabled class when length permits
+            if (length >= activePools.size) {
+                for (pool in activePools) {
+                    chars[index++] = pool[SECURE_RANDOM.nextInt(pool.length)]
                 }
             }
-        }
-    }
-
-    private fun evaluateStrength(password: String): PasswordStrength {
-        if (password.isEmpty()) return PasswordStrength.NONE
-        var score = 0
-        if (password.length >= 8) score++
-        if (password.length >= 12) score++
-        if (password.length >= 20) score++
-        if (password.any { it.isUpperCase() }) score++
-        if (password.any { it.isLowerCase() }) score++
-        if (password.any { it.isDigit() }) score++
-        if (password.any { !it.isLetterOrDigit() }) score++
-        return when {
-            score <= 2 -> PasswordStrength.WEAK
-            score <= 4 -> PasswordStrength.MEDIUM
-            else -> PasswordStrength.STRONG
+            while (index < length) {
+                chars[index++] = combinedPool[SECURE_RANDOM.nextInt(combinedPool.length)]
+            }
+            // Fisher-Yates shuffle using SecureRandom
+            for (i in length - 1 downTo 1) {
+                val j = SECURE_RANDOM.nextInt(i + 1)
+                val tmp = chars[i]
+                chars[i] = chars[j]
+                chars[j] = tmp
+            }
+            return String(chars)
         }
     }
 

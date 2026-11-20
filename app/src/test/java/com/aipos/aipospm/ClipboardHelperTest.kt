@@ -90,4 +90,56 @@ class ClipboardHelperTest {
         assertEquals("NewCopiedPassword", mockDelegate.getPrimaryClipText())
         assertTrue(!clearedCalled)
     }
+
+    @Test
+    fun testBackgroundRestrictedClearWipesWhenTimestampUnchanged() = runBlocking {
+        var clearCalled = false
+        var clearedCallbackCalled = false
+        val bgDelegate = object : ClipboardDelegate {
+            var currentTimestamp: Long? = 1000L
+            override fun setPrimaryClip(label: String, text: String) {
+                currentTimestamp = 1000L
+            }
+            override fun getPrimaryClipText(): String? = null // Simulates Android 10+ background restriction
+            override fun getPrimaryClipTimestamp(): Long? = currentTimestamp
+            override fun isBackgroundReadRestricted(): Boolean = true
+            override fun clearPrimaryClip() {
+                clearCalled = true
+            }
+        }
+        ClipboardHelper.testDelegate = bgDelegate
+
+        ClipboardHelper.copyAndScheduleClear(dummyContext, "Password", "Secret123", onCleared = {
+            clearedCallbackCalled = true
+        })
+
+        delay(100)
+        assertTrue(clearCalled)
+        assertTrue(clearedCallbackCalled)
+    }
+
+    @Test
+    fun testBackgroundRestrictedDoesNotWipeWhenTimestampChanged() = runBlocking {
+        var clearCalled = false
+        val bgDelegate = object : ClipboardDelegate {
+            var currentTimestamp: Long? = 1000L
+            override fun setPrimaryClip(label: String, text: String) {
+                currentTimestamp = 1000L
+            }
+            override fun getPrimaryClipText(): String? = null
+            override fun getPrimaryClipTimestamp(): Long? = currentTimestamp
+            override fun isBackgroundReadRestricted(): Boolean = true
+            override fun clearPrimaryClip() {
+                clearCalled = true
+            }
+        }
+        ClipboardHelper.testDelegate = bgDelegate
+
+        ClipboardHelper.copyAndScheduleClear(dummyContext, "Password", "Secret123")
+        // Simulate another app writing to clipboard
+        bgDelegate.currentTimestamp = 2000L
+
+        delay(100)
+        assertTrue(!clearCalled)
+    }
 }

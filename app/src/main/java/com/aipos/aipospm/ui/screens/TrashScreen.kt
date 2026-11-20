@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.AutoDelete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.VpnKey
@@ -65,10 +66,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aipos.aipospm.data.ApiKeyEntry
+import com.aipos.aipospm.data.PasskeyEntry
 import com.aipos.aipospm.data.PasswordEntry
 import com.aipos.aipospm.ui.theme.DangerRed
 import com.aipos.aipospm.ui.theme.WarningAmber
 import com.aipos.aipospm.ui.viewmodels.ApiKeyViewModel
+import com.aipos.aipospm.ui.viewmodels.PasskeyViewModel
 import com.aipos.aipospm.ui.viewmodels.PasswordViewModel
 import kotlinx.coroutines.launch
 
@@ -77,10 +80,12 @@ import kotlinx.coroutines.launch
 fun TrashScreen(
     passwordViewModel: PasswordViewModel,
     apiKeyViewModel: ApiKeyViewModel,
+    passkeyViewModel: PasskeyViewModel? = null,
     onNavigateBack: () -> Unit
 ) {
     val deletedPasswords by passwordViewModel.deletedPasswords.collectAsStateWithLifecycle()
     val deletedApiKeys by apiKeyViewModel.deletedApiKeys.collectAsStateWithLifecycle()
+    val deletedPasskeys by (passkeyViewModel?.deletedPasskeys ?: remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList()) }).collectAsStateWithLifecycle()
 
     var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -89,8 +94,9 @@ fun TrashScreen(
     var showEmptyTrashDialog by remember { mutableStateOf(false) }
     var passwordToDeletePermanently by remember { mutableStateOf<PasswordEntry?>(null) }
     var apiKeyToDeletePermanently by remember { mutableStateOf<ApiKeyEntry?>(null) }
+    var passkeyToDeletePermanently by remember { mutableStateOf<PasskeyEntry?>(null) }
 
-    val totalDeleted = deletedPasswords.size + deletedApiKeys.size
+    val totalDeleted = deletedPasswords.size + deletedApiKeys.size + deletedPasskeys.size
 
     // Empty All Trash Dialog
     if (showEmptyTrashDialog) {
@@ -115,6 +121,7 @@ fun TrashScreen(
                     onClick = {
                         passwordViewModel.emptyTrash()
                         apiKeyViewModel.emptyTrash()
+                        passkeyViewModel?.emptyTrash()
                         showEmptyTrashDialog = false
                         scope.launch {
                             snackbarHostState.showSnackbar("Trash emptied successfully")
@@ -201,6 +208,43 @@ fun TrashScreen(
             },
             dismissButton = {
                 TextButton(onClick = { apiKeyToDeletePermanently = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Permanently Delete Passkey Dialog
+    passkeyToDeletePermanently?.let { entry ->
+        AlertDialog(
+            onDismissRequest = { passkeyToDeletePermanently = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.DeleteForever,
+                    contentDescription = null,
+                    tint = DangerRed
+                )
+            },
+            title = { Text("Delete Passkey Forever?") },
+            text = {
+                Text("Are you sure you want to permanently delete the passkey for '${entry.rpName.ifBlank { entry.rpId }}'? This cannot be recovered.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        passkeyViewModel?.permanentlyDeletePasskey(entry.id)
+                        passkeyToDeletePermanently = null
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Passkey permanently deleted")
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = DangerRed)
+                ) {
+                    Text("Delete Forever", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { passkeyToDeletePermanently = null }) {
                     Text("Cancel")
                 }
             }
@@ -297,56 +341,95 @@ fun TrashScreen(
                         )
                     }
                 )
+                Tab(
+                    selected = selectedTabIndex == 2,
+                    onClick = { selectedTabIndex = 2 },
+                    text = {
+                        Text(
+                            text = "Passkeys (${deletedPasskeys.size})",
+                            fontWeight = if (selectedTabIndex == 2) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                )
             }
 
             // Tab Content
-            if (selectedTabIndex == 0) {
-                if (deletedPasswords.isEmpty()) {
-                    TrashEmptyView(itemType = "passwords")
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(deletedPasswords, key = { it.id }) { entry ->
-                            DeletedPasswordCard(
-                                entry = entry,
-                                onRestore = {
-                                    passwordViewModel.restorePassword(entry)
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Restored '${entry.title}'")
+            when (selectedTabIndex) {
+                0 -> {
+                    if (deletedPasswords.isEmpty()) {
+                        TrashEmptyView(itemType = "passwords")
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(deletedPasswords, key = { it.id }) { entry ->
+                                DeletedPasswordCard(
+                                    entry = entry,
+                                    onRestore = {
+                                        passwordViewModel.restorePassword(entry)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Restored '${entry.title}'")
+                                        }
+                                    },
+                                    onDeletePermanently = {
+                                        passwordToDeletePermanently = entry
                                     }
-                                },
-                                onDeletePermanently = {
-                                    passwordToDeletePermanently = entry
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
-            } else {
-                if (deletedApiKeys.isEmpty()) {
-                    TrashEmptyView(itemType = "API keys")
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(deletedApiKeys, key = { it.id }) { entry ->
-                            DeletedApiKeyCard(
-                                entry = entry,
-                                onRestore = {
-                                    apiKeyViewModel.restoreApiKey(entry)
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("Restored '${entry.serviceName}'")
+                1 -> {
+                    if (deletedApiKeys.isEmpty()) {
+                        TrashEmptyView(itemType = "API keys")
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(deletedApiKeys, key = { it.id }) { entry ->
+                                DeletedApiKeyCard(
+                                    entry = entry,
+                                    onRestore = {
+                                        apiKeyViewModel.restoreApiKey(entry)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Restored '${entry.serviceName}'")
+                                        }
+                                    },
+                                    onDeletePermanently = {
+                                        apiKeyToDeletePermanently = entry
                                     }
-                                },
-                                onDeletePermanently = {
-                                    apiKeyToDeletePermanently = entry
-                                }
-                            )
+                                )
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    if (deletedPasskeys.isEmpty()) {
+                        TrashEmptyView(itemType = "passkeys")
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(deletedPasskeys, key = { it.id }) { entry ->
+                                DeletedPasskeyCard(
+                                    entry = entry,
+                                    onRestore = {
+                                        passkeyViewModel?.restorePasskey(entry)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Restored '${entry.rpName.ifBlank { entry.rpId }}'")
+                                        }
+                                    },
+                                    onDeletePermanently = {
+                                        passkeyToDeletePermanently = entry
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -501,6 +584,105 @@ private fun DeletedApiKeyCard(
                     if (entry.notes.isNotEmpty()) {
                         Text(
                             text = entry.notes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                DaysRemainingBadge(daysRemaining = daysRemaining)
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onDeletePermanently,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = DangerRed),
+                    border = BorderStroke(1.dp, DangerRed.copy(alpha = 0.4f)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteForever,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Delete", style = MaterialTheme.typography.labelMedium)
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                FilledTonalButton(
+                    onClick = onRestore,
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Restore,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Restore", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeletedPasskeyCard(
+    entry: PasskeyEntry,
+    onRestore: () -> Unit,
+    onDeletePermanently: () -> Unit
+) {
+    val daysRemaining = calculateDaysRemaining(entry.deletedAt ?: entry.lastUsedAt)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.tertiaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Fingerprint,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = entry.rpName.ifBlank { entry.rpId },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (entry.userName.isNotBlank()) {
+                        Text(
+                            text = entry.userName,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,

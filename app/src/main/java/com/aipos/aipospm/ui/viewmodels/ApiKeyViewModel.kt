@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ApiKeyUiState(
     val selectedApiKey: ApiKeyEntry? = null,
@@ -36,7 +37,7 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
 
     private val db = AppDatabase.getInstance(application)
     private val apiKeyDao = db.apiKeyDao()
-    private val cryptoManager = CryptoManager()
+    private val cryptoManager = CryptoManager.shared
     private val vaultPrefs = VaultPreferencesManager.getInstance(application)
 
     private val _sortOption = MutableStateFlow(vaultPrefs.getApiKeySortOption())
@@ -52,6 +53,10 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     val selectedCategoryIdFilter: StateFlow<Int?> = _selectedCategoryIdFilter.asStateFlow()
 
     init {
+        viewModelScope.launch(Dispatchers.IO) {
+            val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
+            apiKeyDao.purgeOldDeletedApiKeys(thirtyDaysAgo)
+        }
         viewModelScope.launch {
             db.categoryDao().getCategoriesByType(CategoryType.API_KEY.name).collect { cats ->
                 val selected = _selectedCategoryIdFilter.value
@@ -173,21 +178,6 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     val deletedApiKeyCount: StateFlow<Int> = apiKeyDao.getDeletedApiKeyCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    init {
-        viewModelScope.launch(Dispatchers.IO) {
-            val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
-            apiKeyDao.purgeOldDeletedApiKeys(thirtyDaysAgo)
-        }
-        viewModelScope.launch {
-            db.categoryDao().getCategoriesByType(CategoryType.API_KEY.name).collect { cats ->
-                val selected = _selectedCategoryIdFilter.value
-                if (selected != null && cats.none { it.id == selected }) {
-                    _selectedCategoryIdFilter.value = null
-                }
-            }
-        }
-    }
-
     private val _uiState = MutableStateFlow(ApiKeyUiState())
     val uiState: StateFlow<ApiKeyUiState> = _uiState.asStateFlow()
 
@@ -210,28 +200,21 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         viewModelScope.launch {
             try {
-                val (encrypted, iv) = cryptoManager.encrypt(apiKey)
-                val createdAt = if (id != null && id > 0) {
+                val (encrypted, iv) = withContext(Dispatchers.Default) {
+                    cryptoManager.encrypt(apiKey)
+                }
+                val existing = if (id != null && id > 0) {
                     val selected = _uiState.value.selectedApiKey
                     if (selected != null && selected.id == id) {
-                        selected.createdAt
+                        selected
                     } else {
-                        apiKeyDao.getApiKeyById(id).first()?.createdAt ?: System.currentTimeMillis()
+                        apiKeyDao.getApiKeyByIdSync(id)
                     }
-                } else {
-                    System.currentTimeMillis()
-                }
+                } else null
 
-                val customOrder = if (id != null && id > 0) {
-                    val selected = _uiState.value.selectedApiKey
-                    if (selected != null && selected.id == id) {
-                        selected.customOrder
-                    } else {
-                        apiKeyDao.getApiKeyById(id).first()?.customOrder ?: 0
-                    }
-                } else {
-                    0
-                }
+                val now = System.currentTimeMillis()
+                val createdAt = existing?.createdAt ?: now
+                val customOrder = existing?.customOrder ?: 0
 
                 val entry = ApiKeyEntry(
                     id = id ?: 0,
@@ -242,7 +225,7 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
                     categoryId = categoryId,
                     isFavorite = isFavorite,
                     createdAt = createdAt,
-                    updatedAt = System.currentTimeMillis(),
+                    updatedAt = now,
                     customOrder = customOrder,
                     icon = icon
                 )
@@ -266,10 +249,12 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
         loadJob = viewModelScope.launch {
             apiKeyDao.getApiKeyById(id).collect { entry ->
                 if (entry != null) {
-                    val decrypted = try {
-                        cryptoManager.decrypt(entry.encryptedApiKey, entry.iv)
-                    } catch (e: Exception) {
-                        "*** Decryption failed ***"
+                    val decrypted = withContext(Dispatchers.Default) {
+                        try {
+                            cryptoManager.decrypt(entry.encryptedApiKey, entry.iv)
+                        } catch (_: Exception) {
+                            "*** Decryption failed ***"
+                        }
                     }
                     _uiState.value = _uiState.value.copy(
                         selectedApiKey = entry,
@@ -304,8 +289,17 @@ class ApiKeyViewModel(application: Application) : AndroidViewModel(application) 
     fun decryptApiKey(entry: ApiKeyEntry): String {
         return try {
             cryptoManager.decrypt(entry.encryptedApiKey, entry.iv)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             "*** Decryption failed ***"
+        }
+    }
+
+    fun decryptApiKeyAsync(entry: ApiKeyEntry, onDecrypted: (String) -> Unit) {
+        viewModelScope.launch {
+            val decrypted = withContext(Dispatchers.Default) {
+                decryptApiKey(entry)
+            }
+            onDecrypted(decrypted)
         }
     }
 

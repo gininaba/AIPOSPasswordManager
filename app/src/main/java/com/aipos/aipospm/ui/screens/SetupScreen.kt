@@ -73,12 +73,12 @@ fun SetupScreen(
     canUseBiometric: Boolean,
     onSetupComplete: () -> Unit
 ) {
-    var password by rememberSaveable { mutableStateOf("") }
-    var confirmPassword by rememberSaveable { mutableStateOf("") }
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
-    var confirmVisible by rememberSaveable { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var confirmVisible by remember { mutableStateOf(false) }
     var enableBiometric by rememberSaveable { mutableStateOf(false) }
-    var generatedRecoveryKey by rememberSaveable { mutableStateOf("") }
+    var generatedRecoveryKey by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -495,14 +495,17 @@ fun SetupScreen(
                 Button(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        val success = authViewModel.setupMasterPassword(password, confirmPassword)
-                        if (success) {
-                            if (enableBiometric) {
-                                authViewModel.setBiometricEnabled(true)
-                            }
-                            generatedRecoveryKey = authViewModel.generateRecoveryKey()
+                        authViewModel.setupMasterPassword(
+                            password = password,
+                            confirmPassword = confirmPassword,
+                            enableBiometric = enableBiometric
+                        ) { recoveryKey ->
+                            password = ""
+                            confirmPassword = ""
+                            generatedRecoveryKey = recoveryKey
                         }
                     },
+                    enabled = !uiState.isLoading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
@@ -512,7 +515,7 @@ fun SetupScreen(
                     )
                 ) {
                     Text(
-                        text = "Create Password",
+                        text = if (uiState.isLoading) "Securing Vault..." else "Create Password",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
