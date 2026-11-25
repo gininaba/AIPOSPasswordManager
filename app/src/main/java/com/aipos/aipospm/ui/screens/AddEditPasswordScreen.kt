@@ -6,14 +6,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -83,6 +86,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -298,8 +302,10 @@ fun AddEditPasswordScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
+                .consumeWindowInsets(padding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -412,6 +418,7 @@ fun AddEditPasswordScreen(
                 placeholder = { Text("e.g., Google, GitHub") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
                 shape = RoundedCornerShape(12.dp)
             )
 
@@ -534,6 +541,10 @@ fun AddEditPasswordScreen(
                 placeholder = { Text("Optional — leave blank for notes or PINs") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Email,
+                    autoCorrectEnabled = false
+                ),
                 shape = RoundedCornerShape(12.dp)
             )
 
@@ -548,6 +559,10 @@ fun AddEditPasswordScreen(
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = if (passwordVisible) VisualTransformation.None
                 else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    autoCorrectEnabled = false
+                ),
                 trailingIcon = {
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
@@ -666,6 +681,10 @@ fun AddEditPasswordScreen(
                 placeholder = { Text("https://example.com") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Uri,
+                    autoCorrectEnabled = false
+                ),
                 shape = RoundedCornerShape(12.dp)
             )
 
@@ -678,6 +697,7 @@ fun AddEditPasswordScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(120.dp),
+                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
                 shape = RoundedCornerShape(12.dp),
                 maxLines = 5
             )
@@ -727,6 +747,10 @@ fun AddEditPasswordScreen(
                             placeholder = { Text("e.g., JBSW43DPEHPK3PXP") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Ascii,
+                                autoCorrectEnabled = false
+                            ),
                             trailingIcon = {
                                 IconButton(
                                     onClick = {

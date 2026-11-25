@@ -73,7 +73,9 @@ object AutofillStructureParser {
         "com.kiwibrowser.browser",
         "org.cromite.cromite",
         "app.vanadium.browser",
-        "org.torproject.torbrowser"
+        "org.torproject.torbrowser",
+        "eu.weblibre.gecko",
+        "eu.weblibre.gecko.alpha"
     )
 
     private data class CandidateNode(

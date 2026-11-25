@@ -188,6 +188,18 @@ class AutofillMatcherTest {
         // When webDomain IS present, match normally
         val domainMatches = AutofillMatcher.findMatches(listOf(braveEntry), "brave.com", "com.brave.browser")
         assertEquals(1, domainMatches.size)
+
+        // WebLibre (Gecko browser) should also be treated as a trusted browser package
+        val weblibreEntry = PasswordEntry(
+            id = 61,
+            title = "WebLibre Forum",
+            username = "koala",
+            encryptedPassword = "enc",
+            iv = "iv",
+            url = "https://weblibre.eu"
+        )
+        assertTrue(AutofillMatcher.findMatches(listOf(weblibreEntry), null, "eu.weblibre.gecko").isEmpty())
+        assertEquals(1, AutofillMatcher.findMatches(listOf(weblibreEntry), "weblibre.eu", "eu.weblibre.gecko").size)
     }
 
     @Test

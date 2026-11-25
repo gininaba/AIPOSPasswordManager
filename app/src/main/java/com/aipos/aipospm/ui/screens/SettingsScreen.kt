@@ -10,14 +10,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -62,6 +65,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -311,6 +315,10 @@ fun SettingsScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         visualTransformation = if (backupPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            autoCorrectEnabled = false
+                        ),
                         trailingIcon = {
                             IconButton(onClick = { backupPasswordVisible = !backupPasswordVisible }) {
                                 Icon(
@@ -335,6 +343,10 @@ fun SettingsScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         visualTransformation = if (confirmBackupPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            autoCorrectEnabled = false
+                        ),
                         trailingIcon = {
                             IconButton(onClick = { confirmBackupPasswordVisible = !confirmBackupPasswordVisible }) {
                                 Icon(
@@ -402,6 +414,10 @@ fun SettingsScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         visualTransformation = if (backupPasswordToEnterVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            autoCorrectEnabled = false
+                        ),
                         trailingIcon = {
                             IconButton(onClick = { backupPasswordToEnterVisible = !backupPasswordToEnterVisible }) {
                                 Icon(
@@ -483,8 +499,10 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
+                .consumeWindowInsets(padding)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -863,6 +881,10 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             visualTransformation = if (currentPasswordVisible) VisualTransformation.None
                             else PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                autoCorrectEnabled = false
+                            ),
                             trailingIcon = {
                                 IconButton(onClick = {
                                     currentPasswordVisible = !currentPasswordVisible
@@ -887,6 +909,10 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             visualTransformation = if (newPasswordVisible) VisualTransformation.None
                             else PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                autoCorrectEnabled = false
+                            ),
                             trailingIcon = {
                                 IconButton(onClick = {
                                     newPasswordVisible = !newPasswordVisible
@@ -910,6 +936,10 @@ fun SettingsScreen(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                autoCorrectEnabled = false
+                            ),
                             shape = RoundedCornerShape(12.dp)
                         )
 
@@ -1236,9 +1266,9 @@ fun SettingsScreen(
             val appVersion = remember(context) {
                 try {
                     val pkgInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-                    "v${pkgInfo.versionName ?: "1.7.0-beta.1"}"
+                    "v${pkgInfo.versionName ?: "1.7.0-beta.2"}"
                 } catch (_: Exception) {
-                    "v1.7.0-beta.1"
+                    "v1.7.0-beta.2"
                 }
             }
 
@@ -1291,6 +1321,10 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         visualTransformation = if (verifyPasswordVisible) VisualTransformation.None
                         else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            autoCorrectEnabled = false
+                        ),
                         trailingIcon = {
                             IconButton(onClick = { verifyPasswordVisible = !verifyPasswordVisible }) {
                                 Icon(

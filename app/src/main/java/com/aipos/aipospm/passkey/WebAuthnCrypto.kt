@@ -24,12 +24,21 @@ object WebAuthnCrypto {
     const val COSE_ALG_ES256 = -7
 
     // AIPOS Password Manager deterministic AAGUID (16 bytes)
+    // RFC 4122 lowercase UUID representation: 6169706f-732d-706d-4a10-8f3c52e79b01
+    const val AIPOS_AAGUID_UUID = "6169706f-732d-706d-4a10-8f3c52e79b01"
+
     val AIPOS_AAGUID: ByteArray = byteArrayOf(
         0x61.toByte(), 0x69.toByte(), 0x70.toByte(), 0x6F.toByte(),
         0x73.toByte(), 0x2D.toByte(), 0x70.toByte(), 0x6D.toByte(),
         0x4A.toByte(), 0x10.toByte(), 0x8F.toByte(), 0x3C.toByte(),
         0x52.toByte(), 0xE7.toByte(), 0x9B.toByte(), 0x01.toByte()
     )
+
+    fun formatAaguidUuid(aaguidBytes: ByteArray = AIPOS_AAGUID): String {
+        require(aaguidBytes.size == 16) { "AAGUID must be 16 bytes" }
+        val hex = aaguidBytes.joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+        return "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}"
+    }
 
     // Authenticator data flags (WebAuthn Level 3 §6.1)
     private const val FLAG_UP = 0x01 // User Present

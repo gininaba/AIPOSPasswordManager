@@ -92,6 +92,9 @@ import com.aipos.aipospm.ui.viewmodels.ApiKeyViewModel
 import com.aipos.aipospm.ui.viewmodels.CategoryViewModel
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.aipos.aipospm.ui.components.bounceClick
 import com.aipos.aipospm.ui.components.pressScale
@@ -142,7 +145,10 @@ fun ApiKeyListScreen(
             categoryViewModel = categoryViewModel,
             onNavigateToDetail = onNavigateToDetail,
             snackbarHostState = snackbarHostState,
-            modifier = Modifier.padding(padding)
+            modifier = Modifier
+                .padding(padding)
+                .consumeWindowInsets(padding)
+                .imePadding()
         )
     }
 }
@@ -210,6 +216,7 @@ fun ApiKeyListContent(
                             color = MaterialTheme.colorScheme.onSurface
                         ),
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
                         decorationBox = { innerTextField ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,

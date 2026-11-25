@@ -28,10 +28,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Settings
@@ -61,6 +64,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,6 +72,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aipos.aipospm.MainActivity
 import com.aipos.aipospm.data.PasskeyEntry
+import com.aipos.aipospm.passkey.WebAuthnCrypto
+import com.aipos.aipospm.security.ClipboardHelper
 import com.aipos.aipospm.ui.viewmodels.PasskeyViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -166,6 +172,7 @@ fun PasskeysScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .verticalScroll(rememberScrollState())
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
@@ -228,6 +235,19 @@ fun PasskeysScreen(
                         Text(if (isProviderActive) "Passkey Provider Settings (Active)" else "Open Passkey Provider Settings")
                     }
                 }
+                Spacer(modifier = Modifier.height(20.dp))
+                AaguidInfoCard(
+                    onCopyAaguid = {
+                        ClipboardHelper.copyAndScheduleClear(
+                            context,
+                            "AIPOS Passkey AAGUID",
+                            WebAuthnCrypto.AIPOS_AAGUID_UUID
+                        )
+                        scope.launch {
+                            snackbarHostState.showSnackbar("AAGUID copied: ${WebAuthnCrypto.AIPOS_AAGUID_UUID}")
+                        }
+                    }
+                )
             }
         } else {
             val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
@@ -238,6 +258,20 @@ fun PasskeysScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                item(key = "aaguid_card") {
+                    AaguidInfoCard(
+                        onCopyAaguid = {
+                            ClipboardHelper.copyAndScheduleClear(
+                                context,
+                                "AIPOS Passkey AAGUID",
+                                WebAuthnCrypto.AIPOS_AAGUID_UUID
+                            )
+                            scope.launch {
+                                snackbarHostState.showSnackbar("AAGUID copied: ${WebAuthnCrypto.AIPOS_AAGUID_UUID}")
+                            }
+                        }
+                    )
+                }
                 items(passkeys, key = { it.id }) { entry ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -303,6 +337,50 @@ fun PasskeysScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AaguidInfoCard(onCopyAaguid: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Authenticator AAGUID (Entra ID / Enterprise)",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = WebAuthnCrypto.AIPOS_AAGUID_UUID,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            IconButton(onClick = onCopyAaguid) {
+                Icon(
+                    imageVector = Icons.Default.ContentCopy,
+                    contentDescription = "Copy AAGUID",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
     }

@@ -161,5 +161,22 @@ class WebAuthnPasskeyTest {
         assertEquals("github.com", restored.passkeys?.firstOrNull()?.rpId)
         assertEquals(3L, restored.passkeys?.firstOrNull()?.signCount)
     }
+
+    @Test
+    fun testAaguidUuidMatchesEmbeddedRegistrationBytes() {
+        assertEquals("6169706f-732d-706d-4a10-8f3c52e79b01", WebAuthnCrypto.AIPOS_AAGUID_UUID)
+        assertEquals(WebAuthnCrypto.AIPOS_AAGUID_UUID, WebAuthnCrypto.formatAaguidUuid(WebAuthnCrypto.AIPOS_AAGUID))
+
+        val generated = WebAuthnCrypto.generatePasskeyKeyPair()
+        val authData = WebAuthnCrypto.buildRegistrationAuthData(
+            rpId = "login.microsoftonline.com",
+            credentialId = generated.credentialIdBytes,
+            cosePublicKey = generated.cosePublicKeyBytes,
+            signCount = 0L
+        )
+        // WebAuthn authData layout: rpIdHash (0..31), flags (32), signCount (33..36), aaguid (37..52)
+        val embeddedAaguid = authData.copyOfRange(37, 53)
+        assertEquals(WebAuthnCrypto.AIPOS_AAGUID_UUID, WebAuthnCrypto.formatAaguidUuid(embeddedAaguid))
+    }
 }
 

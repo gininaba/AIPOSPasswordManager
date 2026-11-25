@@ -12,6 +12,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.aipos.aipospm.ui.components.IncognitoInputContainer
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryDark,
@@ -96,6 +97,10 @@ fun AIPOSPasswordManagerTheme(
         colorScheme = colorScheme,
         typography = Typography,
         shapes = AppShapes,
-        content = content
+        content = {
+            IncognitoInputContainer {
+                content()
+            }
+        }
     )
 }

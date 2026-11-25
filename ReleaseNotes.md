@@ -1,5 +1,16 @@
 # AIPOS Password Manager — Release Notes
 
+## What's New in v1.7.0-beta.2 (Beta Pre-Release — Keyboard Privacy, IME Insets & Enterprise Passkey AAGUID)
+
+> **Beta Testing Note:** This second beta build resolves community feedback from `v1.7.0-beta.1` (Issues #18, #15, and #13). Please keep a recent encrypted backup from **Settings → Export Encrypted Backup** before upgrading.
+
+- **Fixed Keyboard Covering Input Fields (#18):** Applied proper edge-to-edge IME insets (`consumeWindowInsets(padding).imePadding()`) ahead of scroll containers across Master Password login, Setup, Add/Edit Password, Add/Edit API Key, Settings, Category Manager, and Vault Search screens so the soft keyboard pushes content up and lower fields (such as **Notes** and **TOTP Secret Key**) stay visible while typing.
+- **True Incognito Keyboard Mode (#15):** Wrapped all Compose inputs with `InterceptPlatformTextInput` to set `EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING` on Android 8.0+ alongside explicit `KeyboardType.Password` + `autoCorrectEnabled = false` on all Master Password, Vault Password, Backup Password, TOTP Secret, Recovery Key, and API Key fields—ensuring **HeliBoard**, **AOSP Keyboard**, **Gboard**, and **FlorisBoard** stay in incognito mode without saving or suggesting sensitive entries.
+- **In-App Passkey Authenticator AAGUID (#13):** Added an **Authenticator AAGUID** card (`6169706f-732d-706d-4a10-8f3c52e79b01`) with a 1-tap Copy button inside the **Passkeys** screen for easy **Microsoft Entra ID** / enterprise FIDO2 key-restriction allowlisting.
+- **WebLibre Browser Support:** Added **WebLibre** (`eu.weblibre.gecko` / `eu.weblibre.gecko.alpha`) to the trusted Gecko browser allowlist for Autofill web-domain matching.
+
+---
+
 ## What's New in v1.7.0-beta.1 (Beta Pre-Release)
 
 > **Beta Testing Note:** This is a pre-release build of **v1.7.0** (including a Room database schema upgrade to v7). Please export an encrypted AIPOS backup from **Settings → Export Encrypted Backup** before installing, and report any issues on GitHub!
